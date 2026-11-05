@@ -1,0 +1,19 @@
+{
+  "name": "dd-platform",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "dev:website": "pnpm --filter @dd/website dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.10"
+  }
+}
