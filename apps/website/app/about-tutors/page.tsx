@@ -74,12 +74,12 @@ export default function TutorsPage() {
             </h2>
             <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {approach.map((a, i) => (
-                <li key={a.title} className="relative h-[150px] overflow-hidden rounded-[1rem] bg-white p-4 text-right">
+                <li key={a.title} className="lift group relative h-[150px] overflow-hidden rounded-[1rem] bg-white p-4 text-right">
                   <h3 className="text-base font-semibold text-ink">{a.title}</h3>
                   <p className="ml-auto mt-1 max-w-[15rem] text-xs leading-snug text-muted">{a.desc}</p>
                   <span
                     aria-hidden
-                    className="absolute -bottom-5 left-3 text-[5.5rem] font-medium leading-none tracking-tight text-[#e3e4dd]"
+                    className="absolute -bottom-5 left-3 text-[5.5rem] font-medium leading-none tracking-tight text-[#e3e4dd] transition-[color,translate] duration-500 group-hover:-translate-y-2 group-hover:text-sun"
                   >
                     {String(i + 1).padStart(2, "0")}
                   </span>
@@ -87,7 +87,7 @@ export default function TutorsPage() {
               ))}
             </ul>
             <p className="mt-10 max-w-3xl text-sm leading-relaxed text-ink-soft">
-              {site.name} began as a small tuition centre in Ashok Nagar with one belief — <em>education is life</em>. Today our
+              {site.name} began as a small tuition centre in Chromepet with one belief — <em>education is life</em>. Today our
               tutors teach children from Pre-KG to Grade 12, online and offline, with the same promise: know every child, keep
               parents informed, and make learning steady rather than stressful.
             </p>

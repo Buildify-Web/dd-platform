@@ -66,7 +66,7 @@ export default function AlumniPage() {
                 </h2>
               </div>
               <div className="flex flex-col gap-6 md:items-end">
-                <div className="flex w-fit items-center gap-6 rounded-xl bg-white px-4 py-3">
+                <div className="lift flex w-fit items-center gap-6 rounded-xl bg-white px-4 py-3">
                   <div>
                     <p className="text-2xl font-semibold leading-none text-ink">{site.rating}</p>
                     <p className="mt-1 text-[0.6rem] text-muted">{site.reviewsCount} Google reviews</p>

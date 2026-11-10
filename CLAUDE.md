@@ -223,8 +223,64 @@ Website live and responsive · register → approve → login with role-only acc
 - **Design is fixed.** It must match the approved Figma exports page for page (Home, Courses, Tutors, Achievements, Gallery, Alumni, Contact, Enquiry, plus the navbar and footer). Don't restyle; only change content.
 - **Design tokens** live in `app/globals.css` under `@theme`: `ink #17260f` (text and dark cards), `brand #2b7010` (green), `sun #f6c90e` (yellow), `mist #ecece6` (hero and section background), `paper #f2f4ee` (footer), `frame #eff0ea` (card frame), `sage #dce8cf`, `ghost #9a9e92` (grey headline words). Font is **Outfit** via `next/font` (self-hosted).
 - **Shared building blocks:** `HeroFrame` (rounded grey frame with the navbar inside), `PageHero`, `CtaBand`, `PillButton` (dark pill with a round arrow), `CourseCard`, `PhotoCard` (photo or silhouette tile with tag pills), `PersonTile`, `Footer` (with the giant faded wordmark).
-- **Content files** (all sample data, to be replaced with the client's real data): `content/courses.ts`, `content/people.ts` (tutors, alumni, testimonials), `content/gallery.ts`, `lib/site.ts` (phone, email, address, office hours, rating). Real contact details: **+91 91504 85214**, **meenaannamalai27@gmail.com**. The address and office hours are samples.
-- **Images:** local WebP files in `public/images` (stock placeholders; replace them using the same filenames or update the content files). Logo: `public/logo.png` (transparent); favicons are `app/icon.png` and `app/apple-icon.png`. **No remote image hosts are allowed** (CSP plus `images.remotePatterns: []`).
+- **Content files:** `content/courses.ts`, `content/people.ts` (tutors, alumni, testimonials) and the rating in `lib/site.ts` are still sample data. `content/gallery.ts` holds the **client's real photos**. `lib/site.ts` holds the contact details.
+- **Real contact details:** **+91 91504 85214**, **meenaannamalai27@gmail.com**, and the address **Krishna Swamy St, Lakshmi Nagar, Ganapathipuram, Chromepet, Tambaram, Tamil Nadu 600044**. The institute is in **Chromepet**, not Ashok Nagar; that was an old sample.
+- **Address fields:** `addressShort` (footer) is "Krishna Swamy St, Lakshmi Nagar, Chromepet". `mapsHref` is a Google Maps search for "Dynamic Donalds" plus the full address. Swap in the client's Maps share link if they provide one. Office hours are still samples.
+- **Images:** local WebP files in `public/images`. Apart from the gallery, these are stock placeholders; replace them using the same filenames or update the content files. Favicons are `app/icon.png` and `app/apple-icon.png`. **No remote image hosts are allowed** (CSP plus `images.remotePatterns: []`).
+- **Logo files:**
+  - `public/logo.png` is the full logo, with the emblem plus the "DYNAMIC DONALDS / Education is Life" banner. The footer and OpenGraph use it.
+  - `public/logo-mark.png` is the emblem only (336×331), cropped from `logo.png` and trimmed to its visible pixels. The navbar and the intro use it.
+
+### Website features added after the first build
+- **Gallery** (`content/gallery.ts`, `app/gallery/GalleryGrid.tsx`)
+  - **Photos:** 16 real client photos in `public/images/gallery/*.webp`, with descriptive filenames, max 1600px, WebP at quality 80.
+  - **Albums:** Classroom, Competitions, Events, Celebrations, Our Team.
+  - **Data:** each item stores the photo's real `width`/`height`, so the masonry grid (1/2/3 columns) shows photos uncropped. `date` is optional and was left out, because the client gave no dates. Captions describe what's visible and need client confirmation.
+  - **Grid:** album tabs show photo counts. 12 photos show at first, then "Load more".
+  - **Lightbox:** a `<dialog>` with prev/next buttons, arrow keys and an "n of N" counter.
+- **Navbar brand lockup** (`components/Brand.tsx`)
+  - **Wordmark:** `BrandWordmark` rebuilds the logo's name as live text: yellow-on-green "DYNAMIC DONALDS" plus the tagline. The logo image's own text was unreadable at navbar size.
+  - **Sizing:** everything is in `em` with `text-box: trim-both cap alphabetic`, so the band padding is optically equal. `BRAND_HEIGHT` (`h-[2.1em]`, measured) makes the emblem exactly as tall as the wordmark.
+  - **Size control:** the navbar `<Link>`'s font size drives the whole lockup.
+  - **Laptop width:** at `lg` (1024–1279px) the navbar spacing is tightened so it fits on one line.
+- **Home intro loader** (`components/IntroLoader.tsx`, rendered in the root layout)
+  - **Animation:** the logo is shown centred for about 2.3s with a progress line. Then the emblem and the wordmark FLIP-animate onto the navbar's `[data-brand="mark"]` and `[data-brand="name"]` elements.
+  - **When it plays:** only on a full load of `/`, never on client-side navigation.
+  - **Safety:** honours reduced motion with a simple fade. A CSS failsafe (`.intro-failsafe`) hides the overlay after 6s if JS never runs.
+  - **Keep in sync:** keep the `data-brand` attributes on the navbar elements.
+- **Interactive 3D hero phone** (`components/home/PhoneMockup.tsx`, client component)
+  - **Hover motion:** on mouse or pen hover, the phone straightens from its −7° rest angle, lifts and tilts toward the pointer. An rAF spring writes `--rx`/`--ry`/`--gx`/`--gy` CSS variables, so React doesn't re-render on mouse move.
+  - **Depth effects:** `preserve-3d` layers give edge thickness. The glare, the shadow and the content parallax all read those variables.
+  - **No `will-change`:** don't add `will-change: transform`, because it blurs the text.
+  - **Mini app:** the screen works: Home/Courses/Reports tabs, quick-action bottom sheets (homework you can tick off), event reminder, expandable announcement, attendance month toggle with an SVG donut, and the bell dot. All data is sample.
+  - **Above the chips:** the hero wrapper raises the phone above the floating chips with `has-[[data-hovered=true]]:z-20`. Don't use `hover:`, which is gated on `(hover: hover)`.
+  - **Touch and accessibility:** touch devices get taps but no tilt. The phone's buttons are real and accessible, so only the decorative hero shapes are `aria-hidden`.
+- **Hover system** (`app/globals.css`, components layer)
+  - **`.lift`:** every card or box uses it: a 6px rise plus a soft shadow, done with the `translate` property so it composes with other transforms.
+  - **Entrance and float classes:** `.anim-rise`, `.anim-pop` and `.anim-float` are one-shot or looping animations. All of them are disabled under `prefers-reduced-motion`.
+  - **Per-card touches:** cards add small extras through `group-hover`: icons tilt or scale, number watermarks rise, photos zoom.
+  - **New cards:** use `lift group` on any new card for consistency.
+  - **Horizontal scrollers:** the programme carousel's scroller has vertical padding with matching negative margin, so lifted cards aren't clipped.
+- **"Why choose" 01–04 rows** (`components/home/WhyChoose.tsx`): on the active row, the number rises and darkens, a yellow accent bar grows, the text shifts and an arrow slides in. The panel re-keys on change, so the icon pops, the text rises and the green disc rotates.
+- **Contact map** (`components/MapIllustration.tsx`)
+  - **What it is:** a stylised, not-to-scale Chromepet map: GST Road (labelled along the road with `textPath`), the suburban railway, Chromepet Station, Radha Nagar, Hasthinapuram and "CHROMEPET".
+  - **Label rules** (documented in the file):
+    - keep the area under the pin bubble clear, around (360,165)
+    - labels that must always show go inside desktop-visible y ≈ 46–283 and phone-visible x ≈ 155–565
+    - keep the bottom-right corner free for the "Open in Google Maps" button
+    - no label crosses a road or another label
+  - **After changing the map:** re-check it at 390, 1280 and 1905px.
+
+### Dev environment notes
+- **Port 3000 conflict:** on this machine, port 3000 is often taken by a Docker container from another project (`arn_frontend`). Run the site with `pnpm --filter @dd/website dev --port 3001`, or stop that container.
+- **Dev CSP:** `proxy.ts` uses `style-src 'self' 'unsafe-inline'` **in dev only**, so the Next.js dev-tools toolbar can inject its styles. A nonce would cancel `'unsafe-inline'`. Production stays nonce-only.
+- **Visual checks:**
+  - Playwright's Chromium is installed at `%LOCALAPPDATA%/ms-playwright/chromium-1248/chrome-win64/chrome.exe`.
+  - For static shots, use `--headless=new --screenshot --virtual-time-budget=8000`.
+  - For hover and click checks, drive it over CDP (`--remote-debugging-port`, `Input.dispatchMouseEvent`) with Node 24's built-in `WebSocket`.
+  - Headless Chrome can't go below about 500px wide, so emulate phones with `Emulation.setDeviceMetricsOverride`.
+  - CDP screenshot clips use page coordinates, so add `scrollY`.
+  - Virtual-time screenshots skip CSS transition frames, so you can't capture mid-animation.
 - **EN/TA toggle** (`lib/i18n.tsx`) translates the site chrome (nav, footer, CTAs) only. Full Tamil page copy needs client-reviewed text.
 - **Enquiry flow:** `EnquiryForm` (client-side Zod) → `POST /api/enquiry` → server validates again and forwards to `${BACKEND_API_URL}/enquiries` with an `X-Internal-Key` header. With no backend: dev accepts without storing; **production returns 503** so leads are never silently dropped. The backend `enquiry` module must implement `POST /enquiries`, accepting `{ name, mobile, email, grade, interests[], message, source }`.
 

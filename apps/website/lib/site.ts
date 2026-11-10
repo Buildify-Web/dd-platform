@@ -11,11 +11,9 @@ export const site = {
   phoneHref: "tel:+919150485214",
   email: "meenaannamalai27@gmail.com",
   emailHref: "mailto:meenaannamalai27@gmail.com",
-  // Sample address — replace with the real institute address.
-  addressShort: "12, 4th Avenue, Ashok Nagar, Chennai",
-  addressFull: "No. 12, 4th Avenue, Ashok Nagar, Chennai – 600083",
-  mapsHref:
-    "https://www.google.com/maps/search/?api=1&query=Dynamic+Donalds+Ashok+Nagar+Chennai",
+  addressShort: "Krishna Swamy St, Lakshmi Nagar, Chromepet",
+  addressFull: "Krishna Swamy St, Lakshmi Nagar, Ganapathipuram, Chromepet, Tambaram, Tamil Nadu 600044",
+  mapsHref: "https://www.google.com/maps/search/?api=1&query=Dynamic%20Donalds%2C%20Krishna%20Swamy%20St%2C%20Lakshmi%20Nagar%2C%20Ganapathipuram%2C%20Chromepet%2C%20Tambaram%2C%20Tamil%20Nadu%20600044",
   rating: "4.9",
   reviewsCount: "120+",
   familiesCount: "1,000+",

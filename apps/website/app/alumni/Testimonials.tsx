@@ -183,7 +183,7 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
                   aria-current={on ? "true" : undefined}
                   className={cx(
                     "flex w-full items-center gap-3 rounded-[1rem] px-3 py-3 text-left transition-all duration-500",
-                    on ? "bg-ink text-white shadow-[0_10px_24px_-14px_rgba(23,38,15,0.7)]" : "bg-white text-ink hover:bg-paper",
+                    on ? "bg-ink text-white shadow-[0_10px_24px_-14px_rgba(23,38,15,0.7)]" : "bg-white text-ink hover:translate-x-1 hover:bg-paper",
                   )}
                 >
                   {t.avatar ? (

@@ -95,14 +95,14 @@ export function StagesCarousel() {
 
       <ul
         ref={track}
-        className="no-scrollbar -mr-5 flex snap-x snap-mandatory gap-4 overflow-x-auto pr-5 md:-mr-8 md:pr-8"
+        className="no-scrollbar -mb-8 -mr-5 -mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-8 pr-5 pt-3 md:-mr-8 md:pr-8"
         aria-label="Programmes"
       >
         {stages.map(({ label, href, tags, Icon, block, icon, tag }) => (
           <li key={label} className="w-[300px] shrink-0 snap-start sm:w-[330px] lg:w-[350px]">
-            <Link href={href} className="group block rounded-[1.25rem] bg-frame p-1.5">
+            <Link href={href} className="lift group block rounded-[1.25rem] bg-frame p-1.5">
               <div className={cx("relative h-[250px] rounded-[1rem] p-5 lg:h-[270px]", block)}>
-                <Icon className={cx("size-9", icon)} />
+                <Icon className={cx("size-9 transition-transform duration-500 group-hover:-translate-y-1 group-hover:-rotate-6 group-hover:scale-110", icon)} />
                 <div className="absolute inset-x-4 bottom-4 flex flex-wrap gap-1.5">
                   {tags.map((t) => (
                     <span key={t} className={cx("tag-pill", tag)}>

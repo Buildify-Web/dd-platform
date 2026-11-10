@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import { connection } from "next/server";
 import { Footer } from "@/components/Footer";
+import { IntroLoader } from "@/components/IntroLoader";
 import { Navbar } from "@/components/Navbar";
 import { LangProvider } from "@/lib/i18n";
 import { site } from "@/lib/site";
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             Skip to content
           </a>
           <Navbar />
+          <IntroLoader />
           <main id="main">{children}</main>
           <Footer />
         </LangProvider>

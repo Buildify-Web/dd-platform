@@ -12,18 +12,18 @@ const trustAvatars = ["/images/avatar-1.webp", "/images/avatar-2.webp", "/images
 
 function HeroArt() {
   return (
-    <div aria-hidden className="relative h-[560px] w-full lg:absolute lg:inset-y-0 lg:right-0 lg:h-auto lg:w-[52%]">
+    <div className="relative h-[560px] w-full lg:absolute lg:inset-y-0 lg:right-0 lg:h-auto lg:w-[52%]">
       {/* green pill */}
-      <span className="absolute right-0 top-[22%] h-[56%] w-[92%] rounded-l-full bg-[radial-gradient(ellipse_at_40%_50%,#2f7a12_0%,#2b7010_55%,#1f5a0a_100%)] lg:top-[27%] lg:h-[53%]" />
+      <span aria-hidden className="absolute right-0 top-[22%] h-[56%] w-[92%] rounded-l-full bg-[radial-gradient(ellipse_at_40%_50%,#2f7a12_0%,#2b7010_55%,#1f5a0a_100%)] lg:top-[27%] lg:h-[53%]" />
       {/* yellow circles */}
-      <span className="absolute left-[42%] top-[4%] size-[170px] rounded-full bg-sun lg:left-[44%] lg:top-[11%] lg:size-[215px]" />
-      <span className="absolute -right-16 bottom-[2%] size-[170px] rounded-full bg-sun lg:bottom-[6%] lg:size-[210px]" />
-      {/* phone */}
-      <div className="absolute left-1/2 top-[2%] -translate-x-[40%] -rotate-[7deg] scale-[0.92] lg:left-[36%] lg:top-[7%] lg:translate-x-0 lg:scale-100">
+      <span aria-hidden className="absolute left-[42%] top-[4%] size-[170px] rounded-full bg-sun lg:left-[44%] lg:top-[11%] lg:size-[215px]" />
+      <span aria-hidden className="absolute -right-16 bottom-[2%] size-[170px] rounded-full bg-sun lg:bottom-[6%] lg:size-[210px]" />
+      {/* phone: interactive 3D on hover, rises above the chips while hovered */}
+      <div className="absolute left-1/2 top-[2%] -translate-x-[40%] scale-[0.92] has-[[data-hovered=true]]:z-20 lg:left-[36%] lg:top-[7%] lg:translate-x-0 lg:scale-100">
         <PhoneMockup />
       </div>
       {/* floating chips */}
-      <div className="absolute left-[2%] top-[40%] w-[170px] rounded-xl bg-sun p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] sm:left-[10%] lg:left-[8%] lg:top-[41%] lg:w-[190px]">
+      <div aria-hidden className="lift anim-float absolute left-[2%] top-[40%] w-[170px] rounded-xl bg-sun p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] sm:left-[10%] lg:left-[8%] lg:top-[41%] lg:w-[190px]">
         <p className="text-xl font-medium text-ink">Pre-KG-12</p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-[0.7rem] text-ink-soft">Every grade</span>
@@ -32,7 +32,7 @@ function HeroArt() {
           </span>
         </div>
       </div>
-      <div className="absolute bottom-[12%] right-[3%] w-[170px] rounded-xl bg-brand p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] lg:bottom-[14%] lg:right-[2%] lg:w-[190px]">
+      <div aria-hidden className="lift anim-float absolute bottom-[12%] right-[3%] w-[170px] [animation-delay:-3s] rounded-xl bg-brand p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] lg:bottom-[14%] lg:right-[2%] lg:w-[190px]">
         <p className="text-xl font-medium text-white">Daily</p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-[0.7rem] text-white/80">Class updates</span>
@@ -69,9 +69,9 @@ export default function HomePage() {
                 Find a course
               </PillButton>
             </div>
-            <div className="mt-12 w-full max-w-[340px] rounded-[1rem] bg-white p-4">
+            <div className="lift group mt-12 w-full max-w-[340px] rounded-[1rem] bg-white p-4">
               <div className="flex items-center justify-between">
-                <div className="flex -space-x-2.5">
+                <div className="flex -space-x-2.5 transition-all duration-500 group-hover:-space-x-1">
                   {trustAvatars.map((src, i) => (
                     <Image
                       key={src}
@@ -79,7 +79,7 @@ export default function HomePage() {
                       alt=""
                       width={44}
                       height={44}
-                      className={cx("size-11 rounded-full object-cover ring-2 ring-white", i === 3 && "grayscale")}
+                      className={cx("size-11 rounded-full object-cover ring-2 ring-white transition-[filter] duration-500", i === 3 && "grayscale group-hover:grayscale-0")}
                     />
                   ))}
                   <span className="grid size-11 place-items-center rounded-full bg-ink-soft text-[0.7rem] font-medium text-white ring-2 ring-white">

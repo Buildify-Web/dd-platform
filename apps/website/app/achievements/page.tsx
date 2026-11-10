@@ -81,7 +81,7 @@ export default function AchievementsPage() {
             {/* stacked highlights */}
             <div className="grid gap-4 pt-8 lg:grid-rows-3 lg:pt-10">
               {highlights.map((h) => (
-                <article key={h.student} className={cx("relative min-h-[140px] rounded-[1.25rem] p-5", h.bg)}>
+                <article key={h.student} className={cx("lift group relative min-h-[140px] rounded-[1.25rem] p-5", h.bg)}>
                   <p className={cx("text-xs", h.sub)}>{h.cat}</p>
                   <div className="absolute bottom-5 left-5 pr-36">
                     <h3 className={cx("text-xl font-semibold", h.text)}>{h.award}</h3>
@@ -90,7 +90,7 @@ export default function AchievementsPage() {
                     </p>
                   </div>
                   <div className="absolute bottom-3 right-3 top-3 w-[110px] overflow-hidden rounded-[0.85rem] lg:w-[130px]">
-                    <Image src={h.photo} alt={`${h.student}, ${h.award}`} fill sizes="120px" className="object-cover" />
+                    <Image src={h.photo} alt={`${h.student}, ${h.award}`} fill sizes="120px" className="object-cover transition-transform duration-700 group-hover:scale-110" />
                   </div>
                 </article>
               ))}

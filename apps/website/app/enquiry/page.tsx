@@ -45,15 +45,15 @@ export default async function EnquiryPage({ searchParams }: { searchParams: Prom
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <a href={site.phoneHref} className="flex h-[150px] flex-col justify-between rounded-[1.25rem] bg-white p-4">
+            <a href={site.phoneHref} className="lift group flex h-[150px] flex-col justify-between rounded-[1.25rem] bg-white p-4">
               <span className="flex items-start justify-between text-xs text-muted">
-                Call us <Phone className="size-5 text-ink" />
+                Call us <Phone className="size-5 text-ink transition-transform duration-500 group-hover:-rotate-12 group-hover:scale-110" />
               </span>
               <span className="text-2xl font-semibold text-ink-soft">{site.phoneDisplay}</span>
             </a>
-            <a href={site.emailHref} className="flex h-[150px] flex-col justify-between rounded-[1.25rem] bg-sun p-4">
+            <a href={site.emailHref} className="lift group flex h-[150px] flex-col justify-between rounded-[1.25rem] bg-sun p-4">
               <span className="flex items-start justify-between text-xs text-ink-soft">
-                Email us <Mail className="size-5 text-ink" />
+                Email us <Mail className="size-5 text-ink transition-transform duration-500 group-hover:-rotate-12 group-hover:scale-110" />
               </span>
               <span className="break-all text-base font-semibold text-ink-soft">{site.email}</span>
             </a>

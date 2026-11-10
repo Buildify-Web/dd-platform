@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { navLinks, site } from "@/lib/site";
 import { useLang } from "@/lib/i18n";
+import { BRAND_HEIGHT, BrandWordmark } from "./Brand";
 import { Close, MenuIcon } from "./icons";
 import { cx } from "./ui";
 
@@ -71,7 +72,7 @@ function DesktopNav({ pathname, scrolled }: { pathname: string; scrolled: boolea
                 href={l.href}
                 aria-current={active ? "page" : undefined}
                 className={cx(
-                  "relative z-10 block rounded-full px-4 py-2 text-sm text-ink transition-colors xl:px-[1.1rem]",
+                  "relative z-10 block whitespace-nowrap rounded-full px-3 py-2 text-sm text-ink transition-colors xl:px-[1.1rem]",
                   active && "bg-sun font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_2px_6px_-2px_rgba(158,124,6,0.5)]",
                 )}
               >
@@ -133,29 +134,41 @@ export function Navbar() {
     <header className="fixed inset-x-2 top-3.5 z-50 transform-gpu md:inset-x-2.5 lg:top-[18px]">
       <div
         className={cx(
-          "flex items-center justify-between gap-4 rounded-[1.25rem] px-4 py-2.5 transition-[background-color,box-shadow] duration-300 ease-out md:px-6 lg:px-8",
+          "flex items-center justify-between gap-3 rounded-[1.25rem] xl:gap-4 px-4 py-2.5 transition-[background-color,box-shadow] duration-300 ease-out md:px-6 lg:px-5 xl:px-8",
           glassy
             ? "bg-mist/80 shadow-[0_10px_40px_-12px_rgba(23,38,15,0.28),inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-white/60 backdrop-blur-lg"
             : "bg-transparent",
         )}
       >
-        <Link href="/" prefetch className="flex items-center gap-3 lg:gap-4" aria-label={`${site.name} — home`}>
+        <Link
+          href="/"
+          prefetch
+          className={cx(
+            // One font size drives the whole lockup: the emblem is BRAND_HEIGHT em tall,
+            // exactly the height of the wordmark, so their tops and bottoms line up.
+            "flex shrink-0 origin-left items-center gap-[0.7em] text-[0.95rem] transition-transform duration-300 lg:text-[0.8rem] xl:text-[1.05rem]",
+            glassy && "scale-[0.92]",
+          )}
+          aria-label={`${site.name} — home`}
+        >
+          {/* data-brand: landing spots for the home-page intro animation (IntroLoader) */}
           <Image
-            src="/logo.png"
+            src="/logo-mark.png"
             alt=""
-            width={96}
-            height={85}
+            width={336}
+            height={331}
             priority
-            className={cx("h-11 w-auto origin-left transition-transform duration-300 lg:h-[54px]", glassy && "scale-90")}
+            data-brand="mark"
+            className={cx(BRAND_HEIGHT, "w-auto")}
           />
-          <span className="text-[0.95rem] font-medium text-ink lg:text-base">{site.name}</span>
+          <BrandWordmark data-brand="name" />
         </Link>
 
         <DesktopNav pathname={pathname} scrolled={glassy} />
 
-        <div className="hidden items-center gap-6 lg:flex">
+        <div className="hidden shrink-0 items-center gap-4 lg:flex xl:gap-6">
           <LangToggle />
-          <Link href="/enquiry" className="btn-gloss btn-gloss-light rounded-full bg-white px-6 py-3 text-sm text-ink hover:bg-sun">
+          <Link href="/enquiry" className="btn-gloss btn-gloss-light whitespace-nowrap rounded-full bg-white px-5 py-3 text-sm text-ink hover:bg-sun xl:px-6">
             {t("enquireNow")}
           </Link>
         </div>

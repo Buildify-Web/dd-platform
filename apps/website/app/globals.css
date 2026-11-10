@@ -47,6 +47,39 @@
 }
 
 @layer components {
+  /*
+   * Shared hover for every card / box on the site: a gentle lift with a soft shadow.
+   * Uses the `translate` property (not `transform`) so it composes with any transform
+   * or Tailwind scale/rotate already on the element.
+   */
+  .lift {
+    transition:
+      translate 450ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 450ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 300ms ease;
+  }
+  @media (hover: hover) {
+    .lift:hover {
+      translate: 0 -6px;
+      box-shadow: 0 24px 48px -24px rgba(23, 38, 15, 0.42);
+    }
+  }
+  .lift:active {
+    translate: 0 -2px;
+    transition-duration: 150ms;
+  }
+
+  /* One-shot entrance used when content swaps in place (e.g. the "Why choose" panel). */
+  .anim-rise {
+    animation: intro-rise 550ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .anim-pop {
+    animation: intro-pop 650ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  }
+  .anim-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
   /* Large uppercase display headline used in hero + CTA bands */
   .display {
     font-weight: 600;
@@ -172,9 +205,126 @@
   }
 }
 
+/* Home-page intro loader (components/IntroLoader.tsx). Fill mode is "backwards" so the
+   elements return to their natural transform and the JS fly-to-navbar transform can apply. */
+@keyframes intro-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) translateY(16px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes intro-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes intro-hide {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.intro-pop {
+  animation: intro-pop 750ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+}
+.intro-rise {
+  animation: intro-rise 600ms cubic-bezier(0.22, 1, 0.36, 1) 300ms backwards;
+}
+.intro-progress {
+  animation: progress 1700ms cubic-bezier(0.65, 0, 0.35, 1) 550ms both;
+}
+/* Hero phone mini-app (components/home/PhoneMockup.tsx) */
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes bar-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes bell-ring {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0);
+  }
+  76% {
+    transform: rotate(14deg);
+  }
+  82% {
+    transform: rotate(-12deg);
+  }
+  88% {
+    transform: rotate(8deg);
+  }
+  94% {
+    transform: rotate(-4deg);
+  }
+}
+
+/* Safety net: if scripts never run, the overlay still gets out of the way. */
+.intro-failsafe {
+  animation: intro-hide 400ms ease-out 6s forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  .intro-pop,
+  .intro-rise,
+  .intro-progress {
+    animation: none;
+  }
+  .anim-rise,
+  .anim-pop,
+  .anim-float {
+    animation: none;
+  }
+  .lift,
+  .lift:hover,
+  .lift:active {
+    translate: none;
   }
   .btn-gloss::after {
     display: none;
