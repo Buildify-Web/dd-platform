@@ -34,13 +34,13 @@ export function CourseCard({ course, href = "/enquiry" }: { course: Course; href
   return (
     <Link
       href={`${href}?interest=${encodeURIComponent(course.title)}`}
-      className="group block rounded-[1.25rem] bg-frame p-1.5 transition-shadow hover:shadow-[0_10px_30px_-12px_rgba(23,38,15,0.25)]"
+      className="lift group block rounded-[1.25rem] bg-frame p-1.5"
     >
       <div className={cx("relative h-[200px] overflow-hidden rounded-[1rem] lg:h-[214px]", s.bg)}>
-        <CourseIconGlyph icon={course.icon} className={cx("absolute left-5 top-5 size-8", s.icon)} />
+        <CourseIconGlyph icon={course.icon} className={cx("absolute left-5 top-5 size-8 transition-transform duration-500 group-hover:-translate-y-0.5 group-hover:scale-110", s.icon)} />
         <CourseIconGlyph
           icon={course.icon}
-          className={cx("absolute -right-3 -top-2 size-36 transition-transform duration-500 group-hover:scale-105", s.mark)}
+          className={cx("absolute -right-3 -top-2 size-36 transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-rotate-6 group-hover:scale-110", s.mark)}
         />
         <div className="absolute bottom-4 left-4 flex flex-wrap gap-1.5">
           {course.tags.map((t) => (

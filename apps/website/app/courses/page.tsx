@@ -92,10 +92,10 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
             </div>
             <ul className="mt-12 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {modes.map(({ label, title, desc, Icon, cls, sub }) => (
-                <li key={title} className={`flex min-h-[210px] flex-col justify-between rounded-[1.25rem] p-5 ${cls}`}>
+                <li key={title} className={`lift group flex min-h-[210px] flex-col justify-between rounded-[1.25rem] p-5 ${cls}`}>
                   <div className="flex items-start justify-between">
                     <span className="text-xs">{label}</span>
-                    <Icon className="size-5" />
+                    <Icon className="size-5 transition-transform duration-500 group-hover:rotate-12 group-hover:scale-125" />
                   </div>
                   <div>
                     <h3 className="text-3xl font-medium">{title}</h3>

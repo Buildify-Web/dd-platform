@@ -200,3 +200,61 @@ export const MapPin = (p: P) => (
     <circle cx="12" cy="10" r="2.4" />
   </svg>
 );
+export const Heart = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z" />
+  </svg>
+);
+export const Eye = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+export const Target = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="8.5" />
+    <circle cx="12" cy="12" r="5" />
+    <circle cx="12" cy="12" r="1.5" />
+  </svg>
+);
+export const Brush = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M14.5 4.5 19.5 9.5 11 18l-5-5 8.5-8.5Z" />
+    <path d="M6 13c-2 0-3 1.5-3 3.2 0 1.6-.5 2.6-1 3.3 3.3.4 6.5-.6 7-3.5" />
+  </svg>
+);
+export const Sparkle = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3.5c.6 4.4 2.1 5.9 6.5 6.5-4.4.6-5.9 2.1-6.5 6.5-.6-4.4-2.1-5.9-6.5-6.5 4.4-.6 5.9-2.1 6.5-6.5ZM18.5 15.5c.3 1.8.9 2.4 2.5 2.7-1.6.3-2.2.9-2.5 2.7-.3-1.8-.9-2.4-2.5-2.7 1.6-.3 2.2-.9 2.5-2.7Z" />
+  </svg>
+);
+export const Briefcase = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3.5" y="7" width="17" height="12.5" rx="2" />
+    <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3.5 12.5h17" />
+  </svg>
+);
+export const Play = (p: P) => (
+  <svg {...base(p)} fill="currentColor" stroke="none">
+    <path d="M8 5.6v12.8a1 1 0 0 0 1.5.86l10.2-6.4a1 1 0 0 0 0-1.72L9.5 4.74A1 1 0 0 0 8 5.6Z" />
+  </svg>
+);
+export const Pause = (p: P) => (
+  <svg {...base(p)} fill="currentColor" stroke="none">
+    <rect x="6.5" y="5" width="3.8" height="14" rx="1.2" />
+    <rect x="13.7" y="5" width="3.8" height="14" rx="1.2" />
+  </svg>
+);
+export const Volume = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z" />
+    <path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+  </svg>
+);
+export const VolumeOff = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5H4Z" />
+    <path d="m16 9.5 5 5M21 9.5l-5 5" />
+  </svg>
+);

@@ -9,6 +9,7 @@ import { Mail, MapPin, Phone } from "./icons";
 export function Footer() {
   const { t } = useLang();
   const explore = [
+    { href: "/about", label: t("about") },
     { href: "/courses", label: t("courses") },
     { href: "/about-tutors", label: t("tutors") },
     { href: "/achievements", label: t("achievements") },
@@ -23,7 +24,7 @@ export function Footer() {
   ];
   const contact = [
     { Icon: Phone, label: site.phoneDisplay, href: site.phoneHref },
-    { Icon: Mail, label: site.email, href: site.emailHref },
+    { Icon: Mail, label: site.email.replace("@", "\u200B@"), href: site.emailHref },
     { Icon: MapPin, label: site.addressShort, href: site.mapsHref },
   ];
 
@@ -66,7 +67,7 @@ export function Footer() {
                   <span className="mt-px grid size-7 shrink-0 place-items-center rounded-full bg-white text-brand shadow-[inset_0_1px_0_#fff,0_1px_2px_rgba(23,38,15,0.08)] transition-colors group-hover:bg-sun group-hover:text-ink">
                     <Icon className="size-3.5" />
                   </span>
-                  <span className="pt-0.5 [overflow-wrap:anywhere]">{label}</span>
+                  <span className="pt-0.5 [overflow-wrap:break-word]">{label}</span>
                 </a>
               </li>
             ))}
@@ -78,6 +79,16 @@ export function Footer() {
             © {new Date().getFullYear()} {site.name}
           </p>
           <p>{t("appNote")}</p>
+          <a
+            href="https://www.buildify-web.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Built by Buildify (opens in a new tab)"
+            className="-my-2 inline-flex w-fit items-center gap-2 py-2 text-xs text-muted opacity-80 transition-opacity hover:opacity-100"
+          >
+            <span>Built by</span>
+            <Image src="/buildify-logo.png" alt="Buildify" width={350} height={64} className="h-3.5 w-auto" />
+          </a>
         </div>
 
         <p

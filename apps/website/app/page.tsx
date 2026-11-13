@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { HeroFrame } from "@/components/HeroFrame";
 import { CtaBand } from "@/components/CtaBand";
 import { Container, PillButton, cx } from "@/components/ui";
@@ -7,24 +8,27 @@ import { PhoneMockup } from "@/components/home/PhoneMockup";
 import { StagesCarousel } from "@/components/home/StagesCarousel";
 import { WhyChoose } from "@/components/home/WhyChoose";
 import { site } from "@/lib/site";
+import { testimonials } from "@/content/people";
+import { reviewerInitials, withReviewPhotos } from "@/lib/review-photos";
 
-const trustAvatars = ["/images/avatar-1.webp", "/images/avatar-2.webp", "/images/avatar-3.webp", "/images/avatar-4.webp"];
+/** Real Google reviewers (content/people.ts); photo when dropped into public/images/reviews, else initials. */
+const trustTones = ["bg-brand text-white", "bg-sun text-ink", "bg-ink text-sun", "bg-sage text-brand"];
 
 function HeroArt() {
   return (
-    <div aria-hidden className="relative h-[560px] w-full lg:absolute lg:inset-y-0 lg:right-0 lg:h-auto lg:w-[52%]">
+    <div className="relative h-[560px] w-full lg:absolute lg:inset-y-0 lg:right-0 lg:h-auto lg:w-[52%]">
       {/* green pill */}
-      <span className="absolute right-0 top-[22%] h-[56%] w-[92%] rounded-l-full bg-[radial-gradient(ellipse_at_40%_50%,#2f7a12_0%,#2b7010_55%,#1f5a0a_100%)] lg:top-[27%] lg:h-[53%]" />
+      <span aria-hidden className="absolute right-0 top-[22%] h-[56%] w-[92%] rounded-l-full bg-[radial-gradient(ellipse_at_40%_50%,#2f7a12_0%,#2b7010_55%,#1f5a0a_100%)] lg:top-[27%] lg:h-[53%]" />
       {/* yellow circles */}
-      <span className="absolute left-[42%] top-[4%] size-[170px] rounded-full bg-sun lg:left-[44%] lg:top-[11%] lg:size-[215px]" />
-      <span className="absolute -right-16 bottom-[2%] size-[170px] rounded-full bg-sun lg:bottom-[6%] lg:size-[210px]" />
-      {/* phone */}
-      <div className="absolute left-1/2 top-[2%] -translate-x-[40%] -rotate-[7deg] scale-[0.92] lg:left-[36%] lg:top-[7%] lg:translate-x-0 lg:scale-100">
+      <span aria-hidden className="absolute left-[42%] top-[4%] size-[170px] rounded-full bg-sun lg:left-[44%] lg:top-[11%] lg:size-[215px]" />
+      <span aria-hidden className="absolute -right-16 bottom-[2%] size-[170px] rounded-full bg-sun lg:bottom-[6%] lg:size-[210px]" />
+      {/* phone: interactive 3D on hover, rises above the chips while hovered */}
+      <div className="absolute left-1/2 top-[2%] -translate-x-[40%] scale-[0.92] has-[[data-hovered=true]]:z-20 lg:left-[36%] lg:top-[7%] lg:translate-x-0 lg:scale-100">
         <PhoneMockup />
       </div>
       {/* floating chips */}
-      <div className="absolute left-[2%] top-[40%] w-[170px] rounded-xl bg-sun p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] sm:left-[10%] lg:left-[8%] lg:top-[41%] lg:w-[190px]">
-        <p className="text-xl font-medium text-ink">Pre-KG-12</p>
+      <div aria-hidden className="lift anim-float absolute left-0 top-[42%] w-[140px] rounded-xl bg-sun p-3 sm:left-[10%] sm:top-[40%] sm:w-[170px] sm:p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] sm:left-[10%] lg:left-[8%] lg:top-[41%] lg:w-[190px]">
+        <p className="text-lg font-medium text-ink sm:text-xl">Pre-KG-12</p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-[0.7rem] text-ink-soft">Every grade</span>
           <span className="grid size-5 place-items-center rounded-full bg-brand text-white">
@@ -32,8 +36,8 @@ function HeroArt() {
           </span>
         </div>
       </div>
-      <div className="absolute bottom-[12%] right-[3%] w-[170px] rounded-xl bg-brand p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] lg:bottom-[14%] lg:right-[2%] lg:w-[190px]">
-        <p className="text-xl font-medium text-white">Daily</p>
+      <div aria-hidden className="lift anim-float absolute bottom-[10%] right-0 w-[140px] [animation-delay:-3s] rounded-xl bg-brand p-3 sm:bottom-[12%] sm:right-[3%] sm:w-[170px] sm:p-3.5 shadow-[0_12px_30px_-12px_rgba(0,0,0,0.35)] lg:bottom-[14%] lg:right-[2%] lg:w-[190px]">
+        <p className="text-lg font-medium text-white sm:text-xl">Daily</p>
         <div className="mt-3 flex items-center justify-between">
           <span className="text-[0.7rem] text-white/80">Class updates</span>
           <span className="grid size-5 place-items-center rounded-full bg-white text-ink">
@@ -46,12 +50,13 @@ function HeroArt() {
 }
 
 export default function HomePage() {
+  const trustReviewers = withReviewPhotos(testimonials.slice(0, 4));
   return (
     <>
       <HeroFrame>
         <div className="relative lg:min-h-[690px]">
           <div className="relative z-10 px-5 pb-10 pt-12 md:px-8 lg:max-w-[48%] lg:pb-12 lg:pt-[4.5rem]">
-            <h1 className="display text-[2.9rem] text-ink sm:text-6xl xl:text-[4.5rem]">
+            <h1 className="display text-[clamp(2.1rem,10.2vw,2.9rem)] text-ink sm:text-6xl lg:text-[clamp(3rem,4.7vw,4.5rem)]">
               Tuition &amp;
               <br />
               Coaching <span className="text-olive">for</span>
@@ -60,7 +65,7 @@ export default function HomePage() {
               <br />
               Goal
             </h1>
-            <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-10">
+            <div className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-center sm:gap-10 lg:flex-col lg:items-start lg:gap-6 xl:flex-row xl:items-center xl:gap-10">
               <p className="max-w-[17rem] text-[0.9rem] leading-snug text-ink-soft">
                 From Pre-KG phonics to Grade 12 boards. <strong className="font-semibold text-ink">Find the right course</strong> and
                 follow every class from your phone.
@@ -69,34 +74,40 @@ export default function HomePage() {
                 Find a course
               </PillButton>
             </div>
-            <div className="mt-12 w-full max-w-[340px] rounded-[1rem] bg-white p-4">
+            <Link
+              href="/alumni#reviews"
+              aria-label={`Rated ${site.rating} from ${site.googleReviewsCount} Google reviews. Read our reviews`}
+              className="lift group mt-12 block w-full max-w-[340px] rounded-[1rem] bg-white p-4"
+            >
               <div className="flex items-center justify-between">
-                <div className="flex -space-x-2.5">
-                  {trustAvatars.map((src, i) => (
-                    <Image
-                      key={src}
-                      src={src}
-                      alt=""
-                      width={44}
-                      height={44}
-                      className={cx("size-11 rounded-full object-cover ring-2 ring-white", i === 3 && "grayscale")}
-                    />
-                  ))}
+                <div aria-hidden className="flex -space-x-2.5 transition-all duration-500 group-hover:-space-x-1">
+                  {trustReviewers.map((r, i) =>
+                    r.photo ? (
+                      <Image key={r.name} src={r.photo} alt="" width={88} height={88} className="size-11 rounded-full object-cover ring-2 ring-white" />
+                    ) : (
+                      <span
+                        key={r.name}
+                        className={cx("grid size-11 place-items-center rounded-full text-[0.8rem] font-medium ring-2 ring-white", trustTones[i % trustTones.length])}
+                      >
+                        {reviewerInitials(r.name)}
+                      </span>
+                    ),
+                  )}
                   <span className="grid size-11 place-items-center rounded-full bg-ink-soft text-[0.7rem] font-medium text-white ring-2 ring-white">
-                    1K+
+                    {site.googleReviewsCount}
                   </span>
                 </div>
                 <div className="text-right">
                   <p className="flex items-center justify-end gap-1 text-base font-semibold text-ink">
                     <Star className="size-4 text-sun" /> {site.rating}
                   </p>
-                  <p className="text-[0.65rem] text-muted">Google rating</p>
+                  <p className="text-[0.65rem] text-muted">{site.googleReviewsCount} Google reviews</p>
                 </div>
               </div>
               <p className="mt-3 text-sm text-ink">
                 Trusted by <strong className="font-semibold">{site.familiesCount} families</strong>
               </p>
-            </div>
+            </Link>
           </div>
           <HeroArt />
         </div>

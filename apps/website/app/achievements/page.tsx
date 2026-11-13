@@ -4,7 +4,9 @@ import { HeroFrame, PageHero } from "@/components/HeroFrame";
 import { CtaBand } from "@/components/CtaBand";
 import { PhotoCard } from "@/components/PhotoCard";
 import { Container, PillButton, cx } from "@/components/ui";
-import { BookNote, Medal, Trophy } from "@/components/icons";
+import { ArrowUpRight, BookNote, Medal, Trophy } from "@/components/icons";
+import Link from "next/link";
+import { leadersAward, meena } from "@/content/about";
 
 export const metadata: Metadata = {
   title: "Achievements",
@@ -50,6 +52,58 @@ export default function AchievementsPage() {
         </PageHero>
       </HeroFrame>
 
+      {/* Real recognition (client, Nov 2026). The hall of fame below is still sample data. */}
+      <section className="pt-16 md:pt-20">
+        <Container>
+          <p className="eyebrow">Recognition</p>
+          <article className="lift group relative mt-8 grid overflow-hidden rounded-[1.5rem] bg-ink p-2 text-white lg:grid-cols-[1.3fr_1fr]">
+            <span aria-hidden className="pointer-events-none absolute -bottom-32 -right-24 size-[380px] rounded-full bg-[radial-gradient(circle,rgba(82,196,39,0.32),transparent_65%)]" />
+            <span aria-hidden className="pointer-events-none absolute -top-28 right-[20%] size-[300px] rounded-full bg-[radial-gradient(circle,rgba(246,201,14,0.14),transparent_65%)]" />
+            <div className="relative aspect-[901/623] overflow-hidden rounded-[1.15rem] bg-[#0e1809]">
+              <Image
+                src={leadersAward.photo}
+                alt={leadersAward.photoAlt}
+                fill
+                priority
+                quality={90}
+                sizes="(min-width:1024px) 55vw, 100vw"
+                className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+              />
+              <span className="absolute left-3 top-3 rounded-full bg-sun px-3 py-1.5 text-xs font-semibold text-ink shadow-sm">
+                {leadersAward.year}
+              </span>
+            </div>
+            <div className="relative flex flex-col p-5 sm:p-8 lg:p-10">
+              <span className="grid size-14 place-items-center rounded-full bg-[linear-gradient(160deg,#f6c90e_0%,#f6c90e_55%,#9e7c06_100%)] text-ink transition-transform duration-500 group-hover:-rotate-12">
+                <Trophy className="size-6" />
+              </span>
+              <p className="mt-6 text-xs text-white/60">{leadersAward.by}</p>
+              <h2 className="mt-2 text-[2.1rem] font-light leading-[1.08] tracking-tight sm:text-[2.75rem]">
+                Leaders of the <span className="text-sun">Change</span>
+              </h2>
+              <p className="mt-4 max-w-[26rem] text-sm leading-relaxed text-white/75">
+                Awarded to <strong className="font-semibold text-white">{meena.name}</strong>, {meena.role} of Dynamic Donalds, at the
+                Star Education Awards {leadersAward.year}, with {leadersAward.partner}.
+              </p>
+              <ul className="mt-5 flex flex-wrap gap-1.5">
+                <li className="tag-pill text-white/85">{leadersAward.by}</li>
+                <li className="tag-pill text-white/85">With {leadersAward.partner}</li>
+              </ul>
+              <div aria-hidden className="min-h-8 flex-1" />
+              <Link
+                href="/about#founder"
+                className="btn-gloss btn-gloss-light group/cta inline-flex w-fit items-center gap-3 whitespace-nowrap rounded-full bg-sun py-1.5 pl-5 pr-1.5 text-sm text-ink hover:bg-white"
+              >
+                Meet our founders
+                <span className="grid size-8 place-items-center rounded-full bg-ink text-white transition-transform duration-300 group-hover/cta:rotate-45">
+                  <ArrowUpRight className="size-4" />
+                </span>
+              </Link>
+            </div>
+          </article>
+        </Container>
+      </section>
+
       <section className="py-16 md:py-20">
         <Container>
           <p className="eyebrow">Hall of fame</p>
@@ -81,16 +135,16 @@ export default function AchievementsPage() {
             {/* stacked highlights */}
             <div className="grid gap-4 pt-8 lg:grid-rows-3 lg:pt-10">
               {highlights.map((h) => (
-                <article key={h.student} className={cx("relative min-h-[140px] rounded-[1.25rem] p-5", h.bg)}>
+                <article key={h.student} className={cx("lift group relative flex min-h-[140px] flex-col justify-between gap-3 rounded-[1.25rem] p-5 pr-[7.75rem] sm:pr-[9rem] lg:pr-[10.25rem]", h.bg)}>
                   <p className={cx("text-xs", h.sub)}>{h.cat}</p>
-                  <div className="absolute bottom-5 left-5 pr-36">
-                    <h3 className={cx("text-xl font-semibold", h.text)}>{h.award}</h3>
+                  <div>
+                    <h3 className={cx("text-lg font-semibold leading-tight sm:text-xl", h.text)}>{h.award}</h3>
                     <p className={cx("text-xs", h.sub)}>
                       {h.student} · {h.grade} · {h.year}
                     </p>
                   </div>
-                  <div className="absolute bottom-3 right-3 top-3 w-[110px] overflow-hidden rounded-[0.85rem] lg:w-[130px]">
-                    <Image src={h.photo} alt={`${h.student}, ${h.award}`} fill sizes="120px" className="object-cover" />
+                  <div className="absolute bottom-3 right-3 top-3 w-[96px] overflow-hidden rounded-[0.85rem] sm:w-[110px] lg:w-[130px]">
+                    <Image src={h.photo} alt={`${h.student}, ${h.award}`} fill sizes="120px" className="object-cover transition-transform duration-700 group-hover:scale-110" />
                   </div>
                 </article>
               ))}

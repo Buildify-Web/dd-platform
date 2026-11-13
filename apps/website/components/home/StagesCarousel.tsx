@@ -2,45 +2,64 @@
 
 import Link from "next/link";
 import { useRef } from "react";
-import { ArrowLeft, ArrowRight, BookNote, Flask, GradCap, Trophy } from "@/components/icons";
+import { ArrowLeft, ArrowRight, BookNote, Check, Flask, GradCap, Trophy } from "@/components/icons";
+import { gradeBands } from "@/content/courses";
 import { CircleArrow, cx } from "@/components/ui";
 
+const [foundation, boards, higher] = gradeBands;
+
+/**
+ * Programme cards. Points and pills follow the site's course rules (CLAUDE.md §5) and content/courses.ts;
+ * the course count comes from the same file, so it stays in sync with the Courses page.
+ */
 const stages = [
   {
-    label: "Foundation · Pre-KG – 8",
+    key: "foundation",
+    title: "Foundation",
+    grades: "Pre-KG – Grade 8",
+    desc: "Daily tuition that builds strong basics across school subjects.",
+    points: ["Phonics for Pre-KG to Grade 2", "Group or one-on-one classes"],
+    tags: ["Regular tuition", "Phonics", "All subjects"],
+    count: `${foundation?.courses.length ?? 0} courses`,
     href: "/courses?grade=foundation",
-    tags: ["Regular tuition", "Phonics", "Small groups"],
     Icon: BookNote,
-    block: "bg-brand",
-    icon: "text-sun",
-    tag: "text-white/90",
+    t: { block: "bg-brand", text: "text-white", sub: "text-white/75", disc: "bg-white/15 text-sun", chip: "bg-white/15 text-white", tick: "bg-sun text-ink", pill: "text-white/90" },
   },
   {
-    label: "Competitions",
-    href: "/courses?grade=foundation",
+    key: "competitions",
+    title: "Competitions",
+    grades: "Pre-KG – Grade 8",
+    desc: "Olympiad and Spell Bee coaching that builds speed and confidence.",
+    points: ["Mock tests and timed practice", "Hundreds of medals won"],
     tags: ["Maths Olympiad", "Science Olympiad", "Spell Bee"],
+    count: `${foundation?.courses.filter((c) => c.tags.includes("Competition")).length ?? 0} programmes`,
+    href: "/courses?grade=foundation",
     Icon: Trophy,
-    block: "bg-ink",
-    icon: "text-sun",
-    tag: "text-white/90",
+    t: { block: "bg-ink", text: "text-white", sub: "text-white/70", disc: "bg-white/10 text-sun", chip: "bg-white/10 text-white", tick: "bg-sun text-ink", pill: "text-white/90" },
   },
   {
-    label: "Board years 9 – 10",
-    href: "/courses?grade=9-10",
+    key: "boards",
+    title: "Board years",
+    grades: "Grades 9 – 10",
+    desc: "Board-focused tuition with weekly tests and answer-writing practice.",
+    points: ["Maths & Science included by default", "State Board, Matric, CBSE & IGCSE"],
     tags: ["Maths & Science", "Tamil", "English", "Social"],
+    count: `${boards?.courses.length ?? 0} subjects`,
+    href: "/courses?grade=9-10",
     Icon: GradCap,
-    block: "bg-sun",
-    icon: "text-ink",
-    tag: "text-ink",
+    t: { block: "bg-sun", text: "text-ink", sub: "text-ink/70", disc: "bg-ink text-sun", chip: "bg-ink/10 text-ink", tick: "bg-ink text-sun", pill: "text-ink" },
   },
   {
-    label: "Higher secondary 11 – 12",
+    key: "higher",
+    title: "Higher secondary",
+    grades: "Grades 11 – 12",
+    desc: "Science and Commerce subjects, taught around the board exams.",
+    points: ["Science & Commerce streams", "Online or offline, group or 1:1"],
+    tags: ["Physics", "Chemistry", "Maths", "Accounts", "Economics"],
+    count: `${higher?.courses.length ?? 0} subjects`,
     href: "/courses?grade=11-12",
-    tags: ["Physics", "Chemistry", "Maths", "Commerce", "Accounts"],
     Icon: Flask,
-    block: "bg-sage",
-    icon: "text-brand",
-    tag: "text-brand",
+    t: { block: "bg-sage", text: "text-ink", sub: "text-ink-soft", disc: "bg-brand text-white", chip: "bg-white/60 text-brand", tick: "bg-brand text-white", pill: "text-brand" },
   },
 ];
 
@@ -95,24 +114,54 @@ export function StagesCarousel() {
 
       <ul
         ref={track}
-        className="no-scrollbar -mr-5 flex snap-x snap-mandatory gap-4 overflow-x-auto pr-5 md:-mr-8 md:pr-8"
+        className="no-scrollbar -mb-8 -mr-5 -mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-8 pr-5 pt-3 md:-mr-8 md:pr-8"
         aria-label="Programmes"
       >
-        {stages.map(({ label, href, tags, Icon, block, icon, tag }) => (
-          <li key={label} className="w-[300px] shrink-0 snap-start sm:w-[330px] lg:w-[350px]">
-            <Link href={href} className="group block rounded-[1.25rem] bg-frame p-1.5">
-              <div className={cx("relative h-[250px] rounded-[1rem] p-5 lg:h-[270px]", block)}>
-                <Icon className={cx("size-9", icon)} />
-                <div className="absolute inset-x-4 bottom-4 flex flex-wrap gap-1.5">
-                  {tags.map((t) => (
-                    <span key={t} className={cx("tag-pill", tag)}>
-                      {t}
+        {stages.map(({ key, title, grades, desc, points, tags, count, href, Icon, t }) => (
+          <li key={key} className="w-[300px] shrink-0 snap-start sm:w-[330px] lg:w-[350px]">
+            <Link href={href} className="lift group relative flex h-full flex-col rounded-[1.25rem] bg-frame p-1.5">
+              <div className={cx("relative flex min-h-[330px] flex-1 flex-col overflow-hidden rounded-[1rem] p-5 lg:min-h-[350px]", t.block)}>
+                <span aria-hidden className="pointer-events-none absolute -right-14 -top-14 size-40 rounded-full bg-white/[0.07]" />
+                <div className="relative flex items-center justify-between gap-3">
+                  <span
+                    className={cx(
+                      "grid size-11 place-items-center rounded-full transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-110",
+                      t.disc,
+                    )}
+                  >
+                    <Icon className="size-5" />
+                  </span>
+                  <span className={cx("rounded-full px-3 py-1.5 text-[0.7rem] font-medium", t.chip)}>{grades}</span>
+                </div>
+
+                <h3 className={cx("relative mt-6 text-[1.6rem] font-medium leading-tight tracking-tight", t.text)}>{title}</h3>
+                <p className={cx("relative mt-1.5 text-[0.8rem] leading-snug", t.sub)}>{desc}</p>
+
+                <ul className="relative mt-4 space-y-2">
+                  {points.map((p) => (
+                    <li key={p} className={cx("flex items-center gap-2 text-[0.8rem]", t.text)}>
+                      <span className={cx("grid size-4 shrink-0 place-items-center rounded-full", t.tick)}>
+                        <Check className="size-2.5" strokeWidth={2.8} />
+                      </span>
+                      {p}
+                    </li>
+                  ))}
+                </ul>
+
+                <div aria-hidden className="min-h-5 flex-1" />
+                <div className="relative flex flex-wrap gap-1.5">
+                  {tags.map((tag) => (
+                    <span key={tag} className={cx("tag-pill", t.pill)}>
+                      {tag}
                     </span>
                   ))}
                 </div>
               </div>
-              <div className="flex items-center justify-between px-3 py-4">
-                <span className="text-sm text-ink">{label}</span>
+              <div className="flex items-center justify-between gap-3 px-3 py-4">
+                <span className="min-w-0 text-sm text-ink">
+                  <strong className="font-semibold">{count}</strong>
+                  <span className="text-muted"> · Online &amp; offline</span>
+                </span>
                 <CircleArrow />
               </div>
             </Link>

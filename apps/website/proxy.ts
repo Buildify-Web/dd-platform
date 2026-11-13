@@ -11,7 +11,10 @@ export function proxy(request: NextRequest) {
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
-    `style-src 'self' 'nonce-${nonce}'`,
+    // Dev only: Next's dev tools inject <style> tags without a nonce. Browsers ignore
+    // 'unsafe-inline' whenever a nonce is present, so dev drops the nonce for styles.
+    // Production keeps the strict nonce-only policy.
+    isDev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
     // React/next/image render a few inline style attributes (positioning only).
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' blob: data:",

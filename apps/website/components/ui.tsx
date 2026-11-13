@@ -42,7 +42,7 @@ export function PillButton({ href, children, circle = "white", icon, className, 
     </>
   );
   const cls = cx(
-    "btn-gloss group inline-flex items-center justify-between gap-6 rounded-full bg-ink text-white hover:bg-brand",
+    "btn-gloss group inline-flex shrink-0 items-center justify-between gap-6 whitespace-nowrap rounded-full bg-ink text-white hover:bg-brand",
     size === "lg" ? "py-2 pl-7 pr-2 text-[0.95rem]" : "py-1.5 pl-6 pr-1.5 text-sm",
     className,
   );

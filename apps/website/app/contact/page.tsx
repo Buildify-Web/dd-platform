@@ -68,11 +68,11 @@ export default function ContactPage() {
                 href={c.href}
                 {...(c.href.startsWith("http") ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className={cx(
-                  "group flex h-full items-center gap-4 rounded-[1rem] px-4 py-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-16px_rgba(23,38,15,0.45)]",
+                  "lift group flex h-full items-center gap-4 rounded-[1rem] px-4 py-4",
                   c.cls,
                 )}
               >
-                <span className={cx("grid size-11 shrink-0 place-items-center rounded-full", c.icon)}>
+                <span className={cx("grid size-11 shrink-0 place-items-center rounded-full transition-transform duration-500 group-hover:-rotate-12 group-hover:scale-110", c.icon)}>
                   <c.Icon className="size-5" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -104,14 +104,14 @@ export default function ContactPage() {
               <li
                 key={h.day}
                 className={cx(
-                  "relative flex h-[72px] items-center justify-end gap-10 overflow-hidden rounded-[1rem] px-5",
+                  "lift group relative flex h-[72px] items-center justify-end gap-10 overflow-hidden rounded-[1rem] px-5",
                   i === 1 ? "bg-sun" : "bg-paper",
                 )}
               >
                 <span
                   aria-hidden
                   className={cx(
-                    "absolute -bottom-5 left-4 text-[5rem] font-medium leading-none tracking-tight",
+                    "absolute -bottom-5 left-4 text-[5rem] font-medium leading-none tracking-tight transition-[translate] duration-500 group-hover:-translate-y-1.5",
                     i === 1 ? "text-[#e9bc0b]" : "text-[#e2e5dc]",
                   )}
                 >

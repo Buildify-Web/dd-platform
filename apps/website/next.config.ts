@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   images: {
     formats: ["image/avif", "image/webp"],
+    // 75 = default; 90 for hero-type photos that must stay crisp (e.g. the founder photo)
+    qualities: [75, 90],
     // Only local images are allowed; no remote image hosts.
     remotePatterns: [],
   },

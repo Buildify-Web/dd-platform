@@ -4,9 +4,10 @@ import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import type { Testimonial } from "@/content/people";
 import { ArrowLeft, ArrowRight, Quote, Star } from "@/components/icons";
-import { AvatarFallback, cx } from "@/components/ui";
+import { cx } from "@/components/ui";
 
-const AUTO_ADVANCE_MS = 4000;
+/** Time on each review scales with its length (5–12 s) so long reviews can be read. */
+const readTime = (q: string) => Math.min(12000, Math.max(5000, 2500 + q.length * 35));
 
 function Stars({ className }: { className?: string }) {
   return (
@@ -18,7 +19,29 @@ function Stars({ className }: { className?: string }) {
   );
 }
 
+/** Initials from a reviewer's name, e.g. "Christy Sandra Fernando B" → "CS". */
+function initials(name: string) {
+  const parts = name.replace(/[^\p{L}\s]/gu, " ").split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+/** Colour blocks used for the monogram panel / list avatars (cycled by index). */
+const tones = [
+  { panel: "bg-[linear-gradient(150deg,#2b7010_0%,#1f5a0a_100%)]", text: "text-white", ring: "bg-white/10", chip: "bg-brand text-white" },
+  { panel: "bg-[linear-gradient(150deg,#f6c90e_0%,#e0b30b_100%)]", text: "text-ink", ring: "bg-white/25", chip: "bg-sun text-ink" },
+  { panel: "bg-[linear-gradient(150deg,#24361b_0%,#17260f_100%)]", text: "text-white", ring: "bg-white/[0.07]", chip: "bg-ink text-sun" },
+  { panel: "bg-[linear-gradient(150deg,#dce8cf_0%,#c4d8b1_100%)]", text: "text-ink", ring: "bg-white/35", chip: "bg-sage text-brand" },
+] as const;
+
+/** Long reviews get a smaller type size so every slide stays balanced. */
+function quoteSize(q: string) {
+  if (q.length > 240) return "text-lg sm:text-xl lg:text-[1.3rem]";
+  if (q.length > 150) return "text-xl lg:text-[1.45rem]";
+  return "text-2xl lg:text-[1.6rem]";
+}
+
 /**
+ * Real Google reviews (content/people.ts).
  * Left: testimonial cards that slide sideways on their own (slowly, pausing on hover/focus).
  * Right: the list of reviewers scrolling upwards continuously; clicking a name jumps to it.
  */
@@ -74,11 +97,12 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
     return () => cancelAnimationFrame(id);
   }, [animate]);
 
+  const dwell = readTime(items[pos % n]!.quote);
   useEffect(() => {
     if (paused) return;
-    const id = window.setTimeout(next, AUTO_ADVANCE_MS);
+    const id = window.setTimeout(next, dwell);
     return () => window.clearTimeout(id);
-  }, [paused, next, pos]);
+  }, [paused, next, pos, dwell]);
 
   const cur = items[i]!;
 
@@ -105,10 +129,31 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
               aria-roledescription="slide"
               aria-label={`${(idx % n) + 1} of ${n}`}
             >
-              <div className="relative aspect-[4/4.6] overflow-hidden rounded-[1rem] bg-mist sm:aspect-auto sm:min-h-[360px]">
-                <Image src={t.photo} alt="" fill sizes="(min-width:1024px) 22vw, 90vw" className="object-cover" />
+              {/* reviewer panel: initials monogram (no reviewer photos; see content/people.ts) */}
+              <div
+                className={cx(
+                  "relative flex min-h-[220px] flex-col items-center justify-center overflow-hidden rounded-[1rem] px-6 pb-16 pt-8 text-center sm:min-h-[360px]",
+                  tones[(idx % n) % tones.length]!.panel,
+                  tones[(idx % n) % tones.length]!.text,
+                )}
+              >
+                <span aria-hidden className={cx("absolute -right-12 -top-12 size-44 rounded-full", tones[(idx % n) % tones.length]!.ring)} />
+                <span aria-hidden className={cx("absolute -bottom-16 -left-10 size-40 rounded-full", tones[(idx % n) % tones.length]!.ring)} />
+                {t.photo ? (
+                  <Image
+                    src={t.photo}
+                    alt={`${t.name}’s profile photo`}
+                    width={224}
+                    height={224}
+                    className="relative size-24 rounded-full object-cover shadow-[0_10px_30px_-10px_rgba(0,0,0,0.45)] ring-4 ring-white/30 sm:size-28"
+                  />
+                ) : (
+                  <span className="relative grid size-24 place-items-center rounded-full bg-white/15 text-4xl font-medium tracking-tight ring-1 ring-white/25 backdrop-blur-sm sm:size-28 sm:text-[2.6rem]">
+                    {initials(t.name)}
+                  </span>
+                )}
                 <div className="absolute inset-x-3 bottom-3 flex items-center justify-between rounded-full bg-white/90 px-4 py-2 backdrop-blur">
-                  <span className="text-[0.7rem] font-medium text-ink">Verified review</span>
+                  <span className="text-[0.7rem] font-medium text-ink">Google review</span>
                   <Stars />
                 </div>
               </div>
@@ -119,8 +164,15 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
                   </span>
                   <span className="rounded-full bg-mist px-4 py-1.5 text-[0.7rem] text-ink-soft">{t.topic}</span>
                 </div>
-                <blockquote className="relative my-8 text-2xl font-light leading-snug text-ink lg:text-[1.6rem]">
-                  “ {t.quote} ”
+                <blockquote lang={t.lang} className="relative my-8">
+                  <p className={cx("relative z-10 font-light leading-snug text-ink", t.lang === "ta" ? "text-lg lg:text-xl" : quoteSize(t.quote))}>
+                    “{t.quote}”
+                  </p>
+                  {t.translation ? (
+                    <p lang="en" className="relative z-10 mt-3 text-sm leading-relaxed text-muted">
+                      Translation: {t.translation}
+                    </p>
+                  ) : null}
                   <Quote aria-hidden className="pointer-events-none absolute -bottom-10 right-0 size-28 text-mist" />
                 </blockquote>
                 <div className="mt-auto pr-0 sm:pr-40">
@@ -158,8 +210,8 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
         <span className="absolute inset-x-0 bottom-0 h-0.5 bg-mist">
           <span
             key={`${i}-${paused}`}
-            className={cx("block h-full bg-sun", !paused && "animate-[progress_4s_linear_forwards]")}
-            style={{ width: paused ? "0%" : undefined }}
+            className="block h-full bg-sun"
+            style={paused ? { width: "0%" } : { animation: `progress ${dwell}ms linear forwards` }}
           />
         </span>
         <span className="sr-only" aria-live="polite">
@@ -183,13 +235,21 @@ export function Testimonials({ items }: { items: Testimonial[] }) {
                   aria-current={on ? "true" : undefined}
                   className={cx(
                     "flex w-full items-center gap-3 rounded-[1rem] px-3 py-3 text-left transition-all duration-500",
-                    on ? "bg-ink text-white shadow-[0_10px_24px_-14px_rgba(23,38,15,0.7)]" : "bg-white text-ink hover:bg-paper",
+                    on ? "bg-ink text-white shadow-[0_10px_24px_-14px_rgba(23,38,15,0.7)]" : "bg-white text-ink hover:translate-x-1 hover:bg-paper",
                   )}
                 >
-                  {t.avatar ? (
-                    <Image src={t.avatar} alt="" width={40} height={40} className="size-10 rounded-full object-cover" />
+                  {t.photo ? (
+                    <Image src={t.photo} alt="" width={80} height={80} className={cx("size-10 shrink-0 rounded-full object-cover", on && "ring-2 ring-white/40")} />
                   ) : (
-                    <AvatarFallback tone={idx % 2 ? "brand" : "ink"} className="size-10" />
+                    <span
+                      aria-hidden
+                      className={cx(
+                        "grid size-10 shrink-0 place-items-center rounded-full text-sm font-medium",
+                        on ? "bg-white/15 text-white ring-1 ring-white/25" : tones[idx % tones.length]!.chip,
+                      )}
+                    >
+                      {initials(t.name)}
+                    </span>
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm">{t.name}</span>

@@ -9,7 +9,7 @@ import { cx } from "@/components/ui";
 type Errors = Partial<Record<"name" | "mobile" | "email" | "grade" | "interests" | "message" | "form", string>>;
 
 const field =
-  "w-full border border-line bg-paper px-5 py-3.5 text-sm text-ink placeholder:text-ghost outline-none transition-colors focus:border-brand focus:bg-white aria-[invalid=true]:border-red-500";
+  "w-full border border-line bg-paper px-5 py-3.5 text-base text-ink placeholder:text-ghost sm:text-sm outline-none transition-colors focus:border-brand focus:bg-white aria-[invalid=true]:border-red-500";
 
 export function EnquiryForm({ initialInterest }: { initialInterest?: EnquiryInterest }) {
   const [interests, setInterests] = useState<EnquiryInterest[]>(initialInterest ? [initialInterest] : ["Regular tuition"]);

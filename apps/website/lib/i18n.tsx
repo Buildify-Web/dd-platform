@@ -11,6 +11,7 @@ export type Lang = "en" | "ta";
 const dict = {
   en: {
     home: "Home",
+    about: "About",
     courses: "Courses",
     tutors: "Tutors",
     achievements: "Achievements",
@@ -29,6 +30,7 @@ const dict = {
   },
   ta: {
     home: "முகப்பு",
+    about: "எங்களைப் பற்றி",
     courses: "பாடநெறிகள்",
     tutors: "ஆசிரியர்கள்",
     achievements: "சாதனைகள்",
