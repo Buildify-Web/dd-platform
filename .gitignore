@@ -11,3 +11,5 @@ coverage
 .DS_Store
 next-env.d.ts
 *.tsbuildinfo
+# Uploaded files (photos, documents) are runtime data. They live on the server's volume, never in git.
+apps/backend/storage/

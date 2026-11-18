@@ -70,9 +70,14 @@ export default function HomePage() {
                 From Pre-KG phonics to Grade 12 boards. <strong className="font-semibold text-ink">Find the right course</strong> and
                 follow every class from your phone.
               </p>
-              <PillButton href="/courses" className="w-fit" size="lg">
-                Find a course
-              </PillButton>
+              <div className="flex flex-wrap gap-3">
+                <PillButton href="/register" className="w-fit" size="lg">
+                  Register now
+                </PillButton>
+                <PillButton href="/courses" className="w-fit" size="lg">
+                  Find a course
+                </PillButton>
+              </div>
             </div>
             <Link
               href="/alumni#reviews"

@@ -168,8 +168,8 @@ export function Navbar() {
 
         <div className="hidden shrink-0 items-center gap-4 lg:flex xl:gap-6">
           <LangToggle />
-          <Link href="/enquiry" className="btn-gloss btn-gloss-light whitespace-nowrap rounded-full bg-white px-5 py-3 text-sm text-ink hover:bg-sun xl:px-6">
-            {t("enquireNow")}
+          <Link href="/register" className="btn-gloss btn-gloss-light whitespace-nowrap rounded-full bg-white px-5 py-3 text-sm text-ink hover:bg-sun xl:px-6">
+            {t("registerNow")}
           </Link>
         </div>
 
@@ -211,8 +211,8 @@ export function Navbar() {
           </ul>
           <div className="mt-3 flex items-center justify-between border-t border-line px-2 pt-3">
             <LangToggle />
-            <Link href="/enquiry" className="btn-gloss rounded-full bg-ink px-6 py-3 text-sm text-white hover:bg-brand">
-              {t("enquireNow")}
+            <Link href="/register" className="btn-gloss rounded-full bg-ink px-6 py-3 text-sm text-white hover:bg-brand">
+              {t("registerNow")}
             </Link>
           </div>
         </div>

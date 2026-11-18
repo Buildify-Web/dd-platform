@@ -1,0 +1,1152 @@
+// Dynamic Donalds: database schema (PostgreSQL, Prisma 7).
+// The connection URL lives in prisma.config.ts (DATABASE_URL), not here.
+// Run migrations with:  pnpm db:migrate   (from the repo root)
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Accounts & auth ─────────────────────────────
+
+/// Roles that sign in to the web portal. Parents/students (mobile app) are added later.
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+/// Account lifecycle:
+/// PENDING_APPROVAL → (main admin approves) → INVITED → (user activates) → ACTIVE
+/// PENDING_APPROVAL → REJECTED;  ACTIVE ⇄ DISABLED
+enum AccountStatus {
+  PENDING_APPROVAL /// Registered, waiting for the main admin. Cannot sign in.
+  INVITED /// Approved. A temporary password was emailed; must activate before signing in.
+  ACTIVE /// Can sign in.
+  DISABLED /// Turned off by an admin. Cannot sign in; sessions revoked.
+  REJECTED /// Registration rejected. Cannot sign in.
+}
+
+model User {
+  id                    String        @id @default(uuid(7)) @db.Uuid
+  /// Always stored lower-case and trimmed. Also the username.
+  email                 String        @unique @db.VarChar(254)
+  name                  String        @db.VarChar(100)
+  mobile                String?       @db.VarChar(10)
+  role                  UserRole
+  status                AccountStatus @default(PENDING_APPROVAL)
+  /// The single owner account (MAIN_ADMIN_EMAIL). Only this account approves other admins.
+  isMainAdmin           Boolean       @default(false)
+  /// argon2id hash. Null until the account is activated.
+  passwordHash          String?
+  passwordChangedAt     DateTime?
+  /// argon2id hash of the emailed temporary password (INVITED accounts only).
+  tempPasswordHash      String?
+  tempPasswordExpiresAt DateTime?
+  /// Consecutive failed sign-ins; reset on success. Reaching the limit sets lockedUntil.
+  failedLoginCount      Int           @default(0)
+  lockedUntil           DateTime?
+  lastLoginAt           DateTime?
+  approvedAt            DateTime?
+  approvedById          String?       @db.Uuid
+  approvedBy            User?         @relation("ApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedUsers         User[]        @relation("ApprovedBy")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  sessions        Session[]
+  authTokens      AuthToken[]
+  passwordHistory PasswordHistory[]
+  authEvents      AuthEvent[]
+
+  // ── Portal profile ──
+  /// "Founder & Director", "Teacher". Shown on the profile and in "How you appear".
+  designation         String?              @db.VarChar(100)
+  /// Staff: main subject shown in lists ("Maths").
+  subject             String?              @db.VarChar(60)
+  /// Staff ID, e.g. DD-ST-007 (staff only).
+  staffCode           String?              @unique @db.VarChar(20)
+  address             String?              @db.VarChar(200)
+  avatarFileId        String?              @db.Uuid
+  /// Notification preferences, e.g. { "emailDigest": true, "approvals": true }.
+  preferences         Json?
+  teachingAssignments TeachingAssignment[]
+  teachingRequests    TeachingChangeRequest[]
+  rfidCards           RfidCard[]           @relation("StaffCards")
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  leaveRequests       LeaveRequest[]       @relation("StaffLeave")
+  classUpdates        ClassUpdate[]
+  homeworkGiven       Homework[]
+  assignmentsMade     Assignment[]
+  papersUploaded      QuestionPaper[]      @relation("PaperUploader")
+  testsCreated        Test[]
+  announcements       Announcement[]
+  studentAllocations  StudentAllocation[]
+
+  @@index([role, status])
+}
+
+enum SessionPortal {
+  ADMIN
+  STAFF
+}
+
+enum SessionEndReason {
+  LOGOUT
+  IDLE_TIMEOUT
+  EXPIRED
+  PASSWORD_CHANGED
+  ACCOUNT_DISABLED
+  REVOKED_BY_ADMIN
+}
+
+/// Server-side session. The client holds an opaque random token; only its SHA-256 hash is stored.
+model Session {
+  id                 String            @id @default(uuid(7)) @db.Uuid
+  userId             String            @db.Uuid
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash          String            @unique @db.VarChar(64)
+  portal             SessionPortal
+  rememberMe         Boolean           @default(false)
+  /// Inactivity limit for this session, in minutes (snapshot of the setting at sign-in).
+  idleTimeoutMinutes Int
+  lastSeenAt         DateTime          @default(now())
+  /// Absolute end of the session, whatever the activity.
+  expiresAt          DateTime
+  ipAddress          String?           @db.VarChar(45)
+  userAgent          String?           @db.VarChar(255)
+  revokedAt          DateTime?
+  revokedReason      SessionEndReason?
+  createdAt          DateTime          @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+enum AuthTokenPurpose {
+  PASSWORD_RESET /// Emailed reset link (single use, short-lived).
+  ACTIVATION /// Issued after the temporary password is verified; lets the user set a password.
+}
+
+/// Single-use tokens. Only the SHA-256 hash is stored.
+model AuthToken {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  userId    String           @db.Uuid
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   AuthTokenPurpose
+  tokenHash String           @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?          @db.VarChar(45)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+}
+
+/// Previous password hashes, so a new password can't repeat a recent one.
+model PasswordHistory {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  userId       String   @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+enum AuthEventType {
+  LOGIN_SUCCEEDED
+  LOGIN_FAILED
+  ACCOUNT_LOCKED
+  LOGOUT
+  SESSION_EXPIRED
+  ACCESS_DENIED
+  ACTIVATION_VERIFIED
+  ACTIVATION_COMPLETED
+  ACTIVATION_RESENT
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  ACCOUNT_INVITED
+}
+
+/// Permanent log of every sign-in attempt and credential change ("Every sign-in is logged").
+/// Never deleted by cleanup jobs. Passwords and tokens are never stored here.
+model AuthEvent {
+  id        String         @id @default(uuid(7)) @db.Uuid
+  type      AuthEventType
+  userId    String?        @db.Uuid
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Email typed at sign-in (lower-case), kept even when no account matches.
+  email     String?        @db.VarChar(254)
+  portal    SessionPortal?
+  /// Short machine reason, e.g. "BAD_PASSWORD", "LOCKED", "WRONG_PORTAL".
+  reason    String?        @db.VarChar(64)
+  ipAddress String?        @db.VarChar(45)
+  userAgent String?        @db.VarChar(255)
+  createdAt DateTime       @default(now())
+
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+  @@index([email, createdAt])
+  @@index([createdAt])
+}
+
+// ═════════════════════════════ Portal (admin & staff) ═════════════════════════════
+// Ids are UUIDv7. Money is whole rupees (Int). Calendar days are @db.Date (India time).
+// Reviewer / actor ids without a relation are kept as plain uuids on purpose: the
+// readable name is stored next to them, and the AuditLog is the record of who did what.
+
+enum Grade {
+  PRE_KG
+  LKG
+  UKG
+  GRADE_1
+  GRADE_2
+  GRADE_3
+  GRADE_4
+  GRADE_5
+  GRADE_6
+  GRADE_7
+  GRADE_8
+  GRADE_9
+  GRADE_10
+  GRADE_11
+  GRADE_12
+}
+
+enum CourseCategory {
+  TUITION
+  PHONICS
+  OLYMPIAD
+  SPELL_BEE
+  SUBJECT
+  OTHER
+}
+
+/// A course parents can enrol in (published ones appear in the app's Course Enrolment).
+model Course {
+  id          String         @id @default(uuid(7)) @db.Uuid
+  name        String         @db.VarChar(100)
+  category    CourseCategory @default(OTHER)
+  grades      Grade[]
+  /// Subjects taught inside the course ("Maths & Science" = Maths, Science). Empty = the course itself.
+  subjects    String[]
+  monthlyFee  Int
+  /// Grades 9-10 "Maths & Science": mandatory and on by default.
+  isMandatory Boolean        @default(false)
+  published   Boolean        @default(true)
+  archivedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  enrolments          Enrolment[]
+  teachingAssignments TeachingAssignment[]
+  classUpdates        ClassUpdate[]
+  homework            Homework[]
+  assignments         Assignment[]
+  papers              QuestionPaper[]
+  tests               Test[]
+  allocations         StudentAllocation[]
+}
+
+model Competition {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  name            String    @db.VarChar(100)
+  date            DateTime  @db.Date
+  grades          Grade[]
+  registrationFee Int
+  transportFee    Int       @default(0)
+  description     String?   @db.VarChar(500)
+  published       Boolean   @default(true)
+  archivedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  subCompetitions SubCompetition[]
+  registrations   CompetitionRegistration[]
+}
+
+model SubCompetition {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  competitionId String      @db.Uuid
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  name          String      @db.VarChar(100)
+  fee           Int
+  sortOrder     Int         @default(0)
+}
+
+/// A parent selection: total = selected sub-competition fees (or the registration fee) + transport.
+model CompetitionRegistration {
+  id                String      @id @default(uuid(7)) @db.Uuid
+  competitionId     String      @db.Uuid
+  competition       Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  studentId         String      @db.Uuid
+  student           Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subCompetitionIds String[]    @db.Uuid
+  transport         Boolean     @default(false)
+  total             Int
+  createdAt         DateTime    @default(now())
+
+  @@unique([competitionId, studentId])
+}
+
+// ───────────────────────────── Students ─────────────────────────────
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SessionType {
+  OFFLINE
+  ONLINE
+}
+
+enum LearningMode {
+  GROUP
+  ONE_ON_ONE
+}
+
+model Student {
+  id                  String        @id @default(uuid(7)) @db.Uuid
+  /// Admission number, e.g. DD-0921.
+  code                String        @unique @db.VarChar(20)
+  name                String        @db.VarChar(100)
+  grade               Grade
+  rollNo              Int?
+  parentName          String?       @db.VarChar(100)
+  fatherName          String?       @db.VarChar(100)
+  motherName          String?       @db.VarChar(100)
+  mobile              String        @db.VarChar(10)
+  email               String?       @db.VarChar(254)
+  address             String?       @db.VarChar(200)
+  sessionType         SessionType   @default(OFFLINE)
+  learningMode        LearningMode  @default(GROUP)
+  /// Inactive only when no course is enrolled (enforced in the service).
+  status              StudentStatus @default(ACTIVE)
+  photoFileId         String?       @db.Uuid
+  /// Off = exempt from automatic fee reminders.
+  feeRemindersEnabled Boolean       @default(true)
+  registrationId      String?       @unique @db.Uuid
+  /// From the registration form. Age is worked out from this date, never stored.
+  dateOfBirth         DateTime?     @db.Date
+  gender              Gender?
+  schoolName          String?       @db.VarChar(120)
+  /// Photo of the school ID card sent with the registration (admin only).
+  schoolIdCardFileId  String?       @db.Uuid
+  joinedAt            DateTime      @default(now())
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  enrolments       Enrolment[]
+  enrolmentChanges EnrolmentChange[]
+  allocations      StudentAllocation[]
+  competitionRegs  CompetitionRegistration[]
+  attendance       AttendanceRecord[]
+  leaveRequests    LeaveRequest[]            @relation("StudentLeave")
+  rfidCards        RfidCard[]                @relation("StudentCards")
+  rfidScans        RfidScan[]
+  feeRecords       FeeRecord[]
+  payments         Payment[]
+  marks            Mark[]
+  submissions      HomeworkSubmission[]
+  classUpdates     ClassUpdate[]
+  assignments      Assignment[]
+  assignmentViews  AssignmentView[]
+  papers           QuestionPaper[]
+  notifications    Notification[]
+
+  @@index([grade, status])
+  @@index([name])
+}
+
+model Enrolment {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  studentId      String    @db.Uuid
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId       String    @db.Uuid
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  startedAt      DateTime  @default(now())
+  /// Set when the student leaves the course. Active enrolments have endedAt = null.
+  endedAt        DateTime?
+  /// Per-student fee override (e.g. sibling concession). Null = the course fee.
+  feeOverride    Int?
+  overrideReason String?   @db.VarChar(120)
+
+  @@index([studentId, endedAt])
+  @@index([courseId, endedAt])
+}
+
+enum RequestStatus {
+  PENDING
+  INFO_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+enum RegistrationType {
+  STUDENT
+  STAFF
+}
+
+/// A parent (student) or staff registration waiting for admin review.
+model Registration {
+  id           String           @id @default(uuid(7)) @db.Uuid
+  /// REG-0922
+  code         String           @unique @db.VarChar(20)
+  type         RegistrationType
+  status       RequestStatus    @default(PENDING)
+  /// Submitted fields (validated again on approval). See modules/registrations/schemas.ts.
+  data         Json
+  photoFileId  String?          @db.Uuid
+  submittedAt  DateTime         @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?          @db.Uuid
+  decisionNote String?          @db.VarChar(500)
+  /// The staff account created on approval (students link back via Student.registrationId).
+  staffUserId  String?          @db.Uuid
+
+  @@index([status, type, submittedAt])
+}
+
+/// Parent-requested course changes: take effect only after admin approval.
+model EnrolmentChange {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  /// ENR-0091
+  code            String        @unique @db.VarChar(20)
+  studentId       String        @db.Uuid
+  student         Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  addCourseIds    String[]      @db.Uuid
+  removeCourseIds String[]      @db.Uuid
+  requestedAt     DateTime      @default(now())
+  status          RequestStatus @default(PENDING)
+  note            String?       @db.VarChar(500)
+  reviewedAt      DateTime?
+  reviewedById    String?       @db.Uuid
+
+  @@index([status, requestedAt])
+}
+
+// ───────────────────────────── Staff ─────────────────────────────
+
+/// Teacher to grade + course (+ optional subject inside the course). Teachers see only
+/// students in these grades who are enrolled in these courses.
+/// A teacher's proposed change to what they teach. The admin approves it before it takes effect.
+/// Only one request is pending per teacher: a new submit replaces the pending one.
+model TeachingChangeRequest {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  staffId      String        @db.Uuid
+  staff        User          @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  status       RequestStatus @default(PENDING)
+  /// The full set they want to teach: [{ grade, courseId, subject }]. "" subject = the whole course.
+  rows         Json
+  submittedAt  DateTime      @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?       @db.Uuid
+  decisionNote String?       @db.VarChar(500)
+
+  @@index([staffId, status])
+  @@index([status, submittedAt])
+}
+
+model TeachingAssignment {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  staffId   String   @db.Uuid
+  staff     User     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  grade     Grade
+  courseId  String   @db.Uuid
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  /// "" = the whole course.
+  subject   String   @default("") @db.VarChar(60)
+  /// Timetable for the staff dashboard: weekdays (0 = Sunday … 6 = Saturday), "16:30" times (IST), room.
+  days      Int[]
+  startTime String?  @db.VarChar(5)
+  endTime   String?  @db.VarChar(5)
+  room      String?  @db.VarChar(30)
+  createdAt DateTime @default(now())
+
+  @@unique([staffId, grade, courseId, subject])
+  @@index([grade, courseId])
+}
+
+enum LeaveFor {
+  STUDENT
+  STAFF
+}
+
+model LeaveRequest {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  kind         LeaveFor
+  studentId    String?             @db.Uuid
+  student      Student?            @relation("StudentLeave", fields: [studentId], references: [id], onDelete: Cascade)
+  staffId      String?             @db.Uuid
+  staff        User?               @relation("StaffLeave", fields: [staffId], references: [id], onDelete: Cascade)
+  fromDate     DateTime            @db.Date
+  toDate       DateTime            @db.Date
+  /// Empty = every session on those days.
+  sessions     AttendanceSession[]
+  reason       String              @db.VarChar(500)
+  status       RequestStatus       @default(PENDING)
+  requestedAt  DateTime            @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?             @db.Uuid
+  decisionNote String?             @db.VarChar(500)
+
+  @@index([status, fromDate])
+  @@index([studentId, fromDate])
+}
+
+// ───────────────────────────── Attendance ─────────────────────────────
+
+enum AttendanceSession {
+  DAY
+  MORNING
+  EVENING
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  NA
+}
+
+enum AttendanceSource {
+  RFID
+  MANUAL
+  LEAVE
+}
+
+/// One mark per student per day per session (Grade 8 and below: DAY; Grade 9+: MORNING / EVENING).
+model AttendanceRecord {
+  id           String            @id @default(uuid(7)) @db.Uuid
+  studentId    String            @db.Uuid
+  student      Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date         DateTime          @db.Date
+  session      AttendanceSession
+  status       AttendanceStatus
+  source       AttendanceSource
+  rfidAt       DateTime?
+  late         Boolean           @default(false)
+  markedById   String?           @db.Uuid
+  markedByName String?           @db.VarChar(100)
+  markedAt     DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([studentId, date, session])
+  @@index([date, session])
+}
+
+// ───────────────────────────── Class updates, homework ─────────────────────────────
+
+model ClassUpdate {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  staffId    String?  @db.Uuid
+  staff      User?    @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  authorName String   @db.VarChar(100)
+  grade      Grade
+  courseId   String   @db.Uuid
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subject    String   @default("") @db.VarChar(60)
+  /// Optional: an update for one student. Null = the whole grade + course.
+  studentId  String?  @db.Uuid
+  student    Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  text       String   @db.VarChar(500)
+  homework   String?  @db.VarChar(500)
+  date       DateTime @db.Date
+  createdAt  DateTime @default(now())
+
+  @@index([grade, courseId, date])
+  @@index([staffId, date])
+}
+
+model Homework {
+  id          String               @id @default(uuid(7)) @db.Uuid
+  grade       Grade
+  courseId    String               @db.Uuid
+  course      Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subject     String               @default("") @db.VarChar(60)
+  title       String               @db.VarChar(120)
+  details     String?              @db.VarChar(500)
+  givenOn     DateTime             @db.Date
+  dueOn       DateTime             @db.Date
+  createdById String?              @db.Uuid
+  createdBy   User?                @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime             @default(now())
+  submissions HomeworkSubmission[]
+
+  @@index([grade, courseId, dueOn])
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  CHECKED
+  REDO
+}
+
+model HomeworkSubmission {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  homeworkId  String           @db.Uuid
+  homework    Homework         @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  studentId   String           @db.Uuid
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  text        String?          @db.VarChar(500)
+  imageFileId String?          @db.Uuid
+  submittedAt DateTime         @default(now())
+  status      SubmissionStatus @default(SUBMITTED)
+  feedback    String?          @db.VarChar(500)
+  checkedById String?          @db.Uuid
+  checkedAt   DateTime?
+  /// Completed homework is hidden from parents 1 month after submission (cleanup job).
+  hiddenAt    DateTime?
+
+  @@unique([homeworkId, studentId])
+}
+
+// ───────────────────────────── Assignments & question papers ─────────────────────────────
+
+/// Grades 9-12 only. Answers go to the teacher's email (not uploaded). Deleting kills the link.
+model Assignment {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  title       String           @db.VarChar(120)
+  grade       Grade
+  courseId    String           @db.Uuid
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subject     String           @default("") @db.VarChar(60)
+  studentId   String?          @db.Uuid
+  student     Student?         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fileId      String           @db.Uuid
+  createdById String?          @db.Uuid
+  createdBy   User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime         @default(now())
+  deletedAt   DateTime?
+  deletedById String?          @db.Uuid
+  views       AssignmentView[]
+
+  @@index([grade, courseId, createdAt])
+}
+
+model AssignmentView {
+  assignmentId  String     @db.Uuid
+  assignment    Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId     String     @db.Uuid
+  student       Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  firstOpenedAt DateTime   @default(now())
+
+  @@id([assignmentId, studentId])
+}
+
+enum PaperStatus {
+  AWAITING
+  ACTIVE
+  DELETED
+}
+
+/// Hidden from parents until admin activates it. Deleted papers' links stop working.
+model QuestionPaper {
+  id            String      @id @default(uuid(7)) @db.Uuid
+  title         String      @db.VarChar(120)
+  grade         Grade
+  courseId      String?     @db.Uuid
+  course        Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  subject       String      @default("") @db.VarChar(60)
+  studentId     String?     @db.Uuid
+  student       Student?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  fileId        String      @db.Uuid
+  status        PaperStatus @default(AWAITING)
+  uploadedById  String?     @db.Uuid
+  uploadedBy    User?       @relation("PaperUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now())
+  activatedAt   DateTime?
+  activatedById String?     @db.Uuid
+  deletedAt     DateTime?
+  deletedById   String?     @db.Uuid
+
+  @@index([status, createdAt])
+}
+
+// ───────────────────────────── Marks ─────────────────────────────
+
+model Test {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  name           String    @db.VarChar(80)
+  grade          Grade
+  courseId       String    @db.Uuid
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subject        String    @default("") @db.VarChar(60)
+  maxMarks       Int
+  heldOn         DateTime? @db.Date
+  /// Parents see marks only after admin publishes them.
+  resultsVisible Boolean   @default(false)
+  publishedAt    DateTime?
+  createdById    String?   @db.Uuid
+  createdBy      User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  marks          Mark[]
+
+  @@index([grade, courseId, createdAt])
+}
+
+model Mark {
+  id            String   @id @default(uuid(7)) @db.Uuid
+  testId        String   @db.Uuid
+  test          Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  studentId     String   @db.Uuid
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  score         Float
+  updatedById   String?  @db.Uuid
+  updatedByName String?  @db.VarChar(100)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([testId, studentId])
+}
+
+// ───────────────────────────── Fees ─────────────────────────────
+
+enum FeeStatus {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
+enum FeeChargeType {
+  COURSE
+  OVERRIDE
+  ONE_TIME
+  COMPETITION
+}
+
+enum PaymentMethod {
+  CASH
+  GPAY
+  BANK_TRANSFER
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PaymentSource {
+  PARENT
+  ADMIN
+}
+
+/// One student's fees for one month ("YYYY-MM"). `status` is kept in step with paid/total
+/// (or the manual override) so lists can filter on it.
+model FeeRecord {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  studentId      String        @db.Uuid
+  student        Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  month          String        @db.VarChar(7)
+  totalDue       Int
+  paid           Int           @default(0)
+  status         FeeStatus     @default(UNPAID)
+  statusOverride FeeStatus?
+  generatedAt    DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  charges        FeeCharge[]
+  events         FeeEvent[]
+  payments       Payment[]
+  reminders      FeeReminder[]
+
+  @@unique([studentId, month])
+  @@index([month, status])
+}
+
+model FeeCharge {
+  id        String        @id @default(uuid(7)) @db.Uuid
+  recordId  String        @db.Uuid
+  record    FeeRecord     @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  type      FeeChargeType
+  label     String        @db.VarChar(120)
+  detail    String?       @db.VarChar(200)
+  amount    Int
+  courseId  String?       @db.Uuid
+  createdAt DateTime      @default(now())
+}
+
+/// "Payment & change history" on the fee record. Kept permanently.
+model FeeEvent {
+  id       String    @id @default(uuid(7)) @db.Uuid
+  recordId String    @db.Uuid
+  record   FeeRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  at       DateTime  @default(now())
+  text     String    @db.VarChar(200)
+  actor    String    @db.VarChar(100)
+  /// Signed: +1750 for a payment; null for events with no amount.
+  amount   Int?
+  kind     String    @db.VarChar(30)
+}
+
+model Payment {
+  id               String        @id @default(uuid(7)) @db.Uuid
+  studentId        String        @db.Uuid
+  student          Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recordId         String?       @db.Uuid
+  record           FeeRecord?    @relation(fields: [recordId], references: [id], onDelete: SetNull)
+  amount           Int
+  method           PaymentMethod
+  reference        String?       @db.VarChar(60)
+  paidOn           DateTime      @db.Date
+  source           PaymentSource
+  status           PaymentStatus
+  submittedAt      DateTime      @default(now())
+  submittedByName  String?       @db.VarChar(100)
+  screenshotFileId String?       @db.Uuid
+  note             String?       @db.VarChar(500)
+  reviewedAt       DateTime?
+  reviewedById     String?       @db.Uuid
+
+  @@index([status, submittedAt])
+  @@index([studentId, submittedAt])
+}
+
+/// One row per automatic reminder (10th / 20th / last day), so each is sent once.
+model FeeReminder {
+  id       String    @id @default(uuid(7)) @db.Uuid
+  recordId String    @db.Uuid
+  record   FeeRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  kind     String    @db.VarChar(10)
+  amount   Int
+  sentAt   DateTime  @default(now())
+
+  @@unique([recordId, kind])
+}
+
+// ───────────────────────────── Communication ─────────────────────────────
+
+enum AnnouncementKind {
+  ANNOUNCEMENT
+  CLASS_NOTICE
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+}
+
+model Announcement {
+  id               String             @id @default(uuid(7)) @db.Uuid
+  kind             AnnouncementKind
+  title            String             @db.VarChar(80)
+  message          String             @db.VarChar(500)
+  /// Audience keys: ALL_PARENTS, DUES, COMPETITION, ALL_STAFF, GRADE:<grade>, CLASS:<grade>:<courseId>:<subject>
+  audiences        String[]
+  audienceLabel    String             @db.VarChar(200)
+  /// Optional narrowing of parent audiences: { courseId, sessionType, learningMode }.
+  filters          Json?
+  recipientCount   Int                @default(0)
+  channels         String[]
+  attachmentFileId String?            @db.Uuid
+  status           AnnouncementStatus
+  scheduledFor     DateTime?
+  sentAt           DateTime?
+  createdById      String?            @db.Uuid
+  createdBy        User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  senderLabel      String             @db.VarChar(100)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status, scheduledFor])
+  @@index([createdAt])
+}
+
+enum NotificationCategory {
+  APPROVALS
+  PAYMENTS
+  SYSTEM
+  ADMIN
+  CLASSES
+  ATTENDANCE
+  HOMEWORK
+  MARKS
+  FEES
+  ANNOUNCEMENT
+}
+
+enum RecipientType {
+  USER
+  PARENT
+}
+
+/// In-app notifications. USER = a portal account inbox; PARENT = the parent of `studentId`
+/// (read by the mobile app; push delivery is added with FCM).
+model Notification {
+  id            String               @id @default(uuid(7)) @db.Uuid
+  recipientType RecipientType
+  userId        String?              @db.Uuid
+  user          User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId     String?              @db.Uuid
+  student       Student?             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  category      NotificationCategory
+  title         String               @db.VarChar(120)
+  body          String               @db.VarChar(500)
+  actionLabel   String?              @db.VarChar(20)
+  href          String?              @db.VarChar(200)
+  /// Counted in "need you before 10 AM".
+  urgent        Boolean              @default(false)
+  readAt        DateTime?
+  createdAt     DateTime             @default(now())
+
+  @@index([userId, createdAt])
+  @@index([studentId, createdAt])
+}
+
+// ───────────────────────────── RFID (Availo) ─────────────────────────────
+
+model RfidDevice {
+  id              String     @id @default(uuid(7)) @db.Uuid
+  name            String     @db.VarChar(60)
+  location        String?    @db.VarChar(100)
+  /// SHA-256 of the device key (sent as X-Device-Key). The key is shown once on creation.
+  keyHash         String     @unique @db.VarChar(64)
+  lastHeartbeatAt DateTime?
+  lastTapAt       DateTime?
+  disabledAt      DateTime?
+  createdAt       DateTime   @default(now())
+  scans           RfidScan[]
+}
+
+enum RfidCardStatus {
+  ACTIVE
+  DISABLED
+  REPLACED
+}
+
+model RfidCard {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  /// Normalised "04:A3:7F:12" (upper-case hex pairs).
+  uid        String         @db.VarChar(32)
+  studentId  String?        @db.Uuid
+  student    Student?       @relation("StudentCards", fields: [studentId], references: [id], onDelete: Cascade)
+  staffId    String?        @db.Uuid
+  staff      User?          @relation("StaffCards", fields: [staffId], references: [id], onDelete: Cascade)
+  status     RfidCardStatus @default(ACTIVE)
+  assignedAt DateTime       @default(now())
+  disabledAt DateTime?
+
+  @@index([uid, status])
+}
+
+enum RfidScanResult {
+  PRESENT
+  LATE
+  REPEAT
+  UNKNOWN
+  DISABLED_CARD
+  STAFF
+}
+
+model RfidScan {
+  id           String             @id @default(uuid(7)) @db.Uuid
+  deviceId     String?            @db.Uuid
+  device       RfidDevice?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  cardUid      String             @db.VarChar(32)
+  scannedAt    DateTime
+  receivedAt   DateTime           @default(now())
+  result       RfidScanResult
+  studentId    String?            @db.Uuid
+  student      Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  staffId      String?            @db.Uuid
+  session      AttendanceSession?
+  /// Unknown cards: set when linked or dismissed.
+  resolvedAt   DateTime?
+  resolvedById String?            @db.Uuid
+
+  @@index([scannedAt])
+  @@index([cardUid, scannedAt])
+  @@index([result, resolvedAt])
+}
+
+// ───────────────────────────── Website content ─────────────────────────────
+
+enum GalleryAlbum {
+  EVENTS
+  COMPETITIONS
+  CLASSROOM
+  CAMPUS
+  ACHIEVEMENTS
+  CELEBRATIONS
+  TEAM
+}
+
+model GalleryItem {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  title      String       @db.VarChar(100)
+  album      GalleryAlbum
+  takenOn    DateTime?    @db.Date
+  fileId     String       @db.Uuid
+  onHomepage Boolean      @default(false)
+  sortOrder  Int          @default(0)
+  createdAt  DateTime     @default(now())
+}
+
+model Achievement {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  title       String   @db.VarChar(120)
+  studentName String?  @db.VarChar(100)
+  detail      String?  @db.VarChar(300)
+  year        Int?
+  fileId      String?  @db.Uuid
+  published   Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Testimonial {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  author    String   @db.VarChar(100)
+  role      String?  @db.VarChar(60)
+  quote     String   @db.VarChar(1000)
+  rating    Int      @default(5)
+  published Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+enum EnquiryStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
+/// From the website enquiry form (POST /v1/enquiries with the internal key).
+model Enquiry {
+  id        String        @id @default(uuid(7)) @db.Uuid
+  name      String        @db.VarChar(100)
+  mobile    String        @db.VarChar(10)
+  email     String?       @db.VarChar(254)
+  grade     String?       @db.VarChar(20)
+  interests String[]
+  message   String        @db.VarChar(500)
+  source    String        @db.VarChar(30)
+  status    EnquiryStatus @default(NEW)
+  createdAt DateTime      @default(now())
+
+  @@index([status, createdAt])
+}
+
+// ───────────────────────────── Platform ─────────────────────────────
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+/// Which staff member handles a student for one course. The staff member must teach that course
+/// for the student's grade (checked in the service).
+model StudentAllocation {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  studentId   String   @db.Uuid
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId    String   @db.Uuid
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  staffId     String   @db.Uuid
+  staff       User     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  allocatedAt DateTime @default(now())
+
+  @@unique([studentId, courseId])
+  @@index([courseId])
+  @@index([staffId])
+}
+
+enum FilePurpose {
+  AVATAR
+  SCHOOL_ID_CARD
+  STUDENT_PHOTO
+  HOMEWORK
+  ASSIGNMENT
+  QUESTION_PAPER
+  PAYMENT_PROOF
+  ANNOUNCEMENT
+  GALLERY
+  ACHIEVEMENT
+}
+
+/// Uploaded files. Bytes live in UPLOAD_DIR under `storageKey`; downloads are checked per purpose.
+model StoredFile {
+  id           String      @id @default(uuid(7)) @db.Uuid
+  purpose      FilePurpose
+  originalName String      @db.VarChar(200)
+  mimeType     String      @db.VarChar(100)
+  size         Int
+  storageKey   String      @unique @db.VarChar(200)
+  uploadedById String?     @db.Uuid
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+}
+
+enum AuditArea {
+  FEES
+  APPROVALS
+  ATTENDANCE
+  MARKS
+  COURSES
+  PAPERS
+  STAFF
+  STUDENTS
+  HOMEWORK
+  ANNOUNCEMENTS
+  RFID
+  CONTENT
+  SETTINGS
+  ACCOUNT
+}
+
+/// Read-only, kept permanently: admin actions, fee changes, marks updates, attendance corrections.
+model AuditLog {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  area       AuditArea
+  action     String    @db.VarChar(60)
+  /// "verified a GPay payment for Madhuri Ishani"
+  summary    String    @db.VarChar(300)
+  actorId    String?   @db.Uuid
+  actor      User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorName  String    @db.VarChar(100)
+  /// "Admin", "Staff", "System"
+  actorRole  String    @db.VarChar(20)
+  entityType String?   @db.VarChar(40)
+  entityId   String?   @db.VarChar(64)
+  fromLabel  String?   @db.VarChar(80)
+  toLabel    String?   @db.VarChar(80)
+  before     Json?
+  after      Json?
+  ipAddress  String?   @db.VarChar(45)
+  userAgent  String?   @db.VarChar(255)
+  createdAt  DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([area, createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model Setting {
+  key         String   @id @db.VarChar(60)
+  value       Json
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @updatedAt
+}
+
+/// Sequences for readable codes (DD-0921, REG-0922, ENR-0091, DD-ST-007).
+model Counter {
+  key   String @id @db.VarChar(40)
+  value Int
+}
+
+/// Idempotency for scheduled jobs ("fee-reminder:2026-11:10").
+model JobRun {
+  key   String   @id @db.VarChar(120)
+  ranAt DateTime @default(now())
+}

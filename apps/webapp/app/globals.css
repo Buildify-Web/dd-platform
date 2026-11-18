@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+/*
+ * Same brand tokens as apps/website (keep them in step), plus the portal surfaces from the
+ * auth designs: canvas (page), shell (rounded frame), field + soft (secondary button) tones.
+ */
+@theme {
+  --color-ink: #17260f;
+  --color-ink-soft: #3f4b38;
+  --color-brand: #2b7010;
+  --color-brand-deep: #235c0d;
+  --color-brand-bright: #52c427;
+  --color-sun: #f6c90e;
+  --color-sun-deep: #d9a908;
+  --color-mist: #ecece6;
+  --color-sage: #dce8cf;
+  --color-muted: #5f665a;
+  --color-ghost: #9a9e92;
+  --color-line: #dfe2d8;
+
+  --color-canvas: #e4e6df;
+  --color-shell: #f1f2ed;
+  --color-field: #e0e3db;
+  --color-soft: #e8eae4;
+  --color-soft-line: #dadcd4;
+  --color-role-admin: #f3e9c1;
+  --color-role-staff: #d1ddc6;
+  --color-danger: #c2341f;
+  --color-danger-soft: #fdf1ee;
+
+  /* Signed-in portal (admin & staff designs) */
+  --color-line-2: #e1e3dc; /* secondary button / input outline */
+  --color-ok-tint: #e3eed8; /* "Active", "Attendance done" */
+  --color-sun-tint: #fbefb8; /* "Awaiting activation", "Partial" */
+  --color-sun-soft: #fdf4cc; /* notice bars */
+  --color-cream: #fdf1c9; /* avatar tone */
+  --color-danger-tint: #fbe5e0; /* "Unpaid", Reject buttons */
+  --color-danger-ink: #a3301f;
+  --color-absent: #e8a597; /* selected "Absent" segment */
+  --color-info-tint: #e2ebf6; /* "GPay", "On leave", info notices */
+  --color-info-ink: #2b4f80;
+  --color-frame: #f1f2ed; /* portal page frame */
+
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background: var(--color-sun);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+  /* Hide the browser's own reveal / clear buttons: the design has its own "Show" button. */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
+}
+
+@layer components {
+  /* Same card hover as the website: a gentle lift with a soft shadow. */
+  .lift {
+    transition:
+      translate 450ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 450ms cubic-bezier(0.22, 1, 0.36, 1),
+      background-color 300ms ease;
+  }
+  @media (hover: hover) {
+    .lift:hover {
+      translate: 0 -4px;
+      box-shadow: 0 22px 40px -24px rgba(23, 38, 15, 0.4);
+    }
+  }
+  .lift:active {
+    translate: 0 -1px;
+    transition-duration: 150ms;
+  }
+
+  .anim-rise {
+    animation: rise 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .anim-fade {
+    animation: fade 500ms ease both;
+  }
+  .anim-shake {
+    animation: shake 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+  .anim-float {
+    animation: float 7s ease-in-out infinite;
+  }
+  /* The raised logo tile in the aside: bobs up and down along the tile field's Z axis. */
+  .anim-bob {
+    translate: 0 0 18px;
+    animation: bob 5s ease-in-out infinite;
+  }
+
+  /* Status dot on the aside activity cards: "Syncing…" pulses, "Done" is steady. */
+  .status-dot {
+    position: relative;
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+  }
+  .status-dot[data-pulse="true"]::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 1.5px solid currentColor;
+    animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  .spinner {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    animation: spin 700ms linear infinite;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes shake {
+  10%,
+  90% {
+    translate: -1px 0;
+  }
+  20%,
+  80% {
+    translate: 2px 0;
+  }
+  30%,
+  50%,
+  70% {
+    translate: -3px 0;
+  }
+  40%,
+  60% {
+    translate: 3px 0;
+  }
+}
+@keyframes ping {
+  0% {
+    opacity: 0.9;
+    scale: 0.6;
+  }
+  80%,
+  100% {
+    opacity: 0;
+    scale: 1.8;
+  }
+}
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -6px;
+  }
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    translate: 0 0 18px;
+  }
+  50% {
+    translate: 0 0 28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise,
+  .anim-fade,
+  .anim-shake,
+  .anim-float,
+  .anim-bob,
+  .status-dot[data-pulse="true"]::after {
+    animation: none;
+  }
+  .lift {
+    transition: none;
+  }
+}

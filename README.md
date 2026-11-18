@@ -11,6 +11,11 @@ See [CLAUDE.md](CLAUDE.md) for the full scope, domain rules, structure and conve
 pnpm install
 cp .env.example apps/website/.env.local   # optional for website-only dev
 pnpm dev:website                          # http://localhost:3000
+
+# Admin & staff portal + API (needs PostgreSQL; see CLAUDE.md §9.10)
+pnpm db:up && pnpm db:migrate && pnpm admin:bootstrap
+pnpm dev:backend                          # http://localhost:4000  (Swagger: /docs)
+pnpm dev:webapp                           # http://localhost:3100
 ```
 
 ## Apps
@@ -18,8 +23,8 @@ pnpm dev:website                          # http://localhost:3000
 | App | Status | Stack |
 |---|---|---|
 | `apps/website` | Built | Next.js 16 + TypeScript + Tailwind 4 |
-| `apps/webapp` | Planned | Next.js + TypeScript |
-| `apps/backend` | Planned | Express + TypeScript + Prisma (PostgreSQL) |
+| `apps/webapp` | Sign-in screens built | Next.js 16 + TypeScript + Tailwind 4 |
+| `apps/backend` | Auth module built | Express 5 + TypeScript + Prisma 7 (PostgreSQL) |
 | `apps/worker` | Planned | Node + TypeScript |
 
 ## Replacing sample content

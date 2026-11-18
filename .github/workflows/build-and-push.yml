@@ -1,20 +1,33 @@
+name: Build and deploy
 
-name: Build and Push Website Image
-
+# Every push to main builds the three images, pushes them to GHCR, then asks Coolify to redeploy.
 on:
   push:
     branches:
-      - testing
+      - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-      packages: write
-
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: dd-backend
+            dockerfile: docker/backend.Dockerfile
+          - image: dd-webapp
+            dockerfile: docker/webapp.Dockerfile
+          - image: dd-website
+            dockerfile: docker/website.Dockerfile
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,10 +42,32 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Docker Image
+      - name: Build and push ${{ matrix.image }}
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./docker/website.Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
-          tags: ghcr.io/buildify-web/dd-platform:latest
+          tags: |
+            ghcr.io/buildify-web/${{ matrix.image }}:latest
+            ghcr.io/buildify-web/${{ matrix.image }}:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # Backend first: its container runs the database migrations when it starts.
+      - name: Redeploy in Coolify
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          BACKEND_UUID: ${{ secrets.COOLIFY_BACKEND_UUID }}
+          WEBAPP_UUID: ${{ secrets.COOLIFY_WEBAPP_UUID }}
+          WEBSITE_UUID: ${{ secrets.COOLIFY_WEBSITE_UUID }}
+        run: |
+          set -e
+          for uuid in "$BACKEND_UUID" "$WEBAPP_UUID" "$WEBSITE_UUID"; do
+            echo "Deploying $uuid"
+            curl -fsS -H "Authorization: Bearer $COOLIFY_TOKEN" "$COOLIFY_URL/api/v1/deploy?uuid=$uuid&force=true"
+            echo
+          done

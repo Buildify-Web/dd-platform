@@ -11,7 +11,16 @@
     "start": "turbo run start",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "dev:website": "pnpm --filter @dd/website dev"
+    "test": "turbo run test",
+    "dev:website": "pnpm --filter @dd/website dev",
+    "dev:webapp": "pnpm --filter @dd/webapp dev",
+    "dev:backend": "pnpm --filter @dd/backend dev",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d",
+    "db:generate": "pnpm --filter @dd/db generate",
+    "db:migrate": "pnpm --filter @dd/db migrate:dev",
+    "db:deploy": "pnpm --filter @dd/db migrate:deploy",
+    "db:studio": "pnpm --filter @dd/db studio",
+    "admin:bootstrap": "pnpm --filter @dd/backend admin:bootstrap"
   },
   "devDependencies": {
     "turbo": "^2.11.10"

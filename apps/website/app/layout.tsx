@@ -16,6 +16,21 @@ const outfit = Outfit({
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
+/**
+ * Admin & staff portal (apps/webapp) lives on a separate domain. Read at request time
+ * (the layout is dynamic), so the URL can be set per deployment without rebuilding.
+ * Only absolute http(s) URLs are accepted; in development it falls back to the local webapp.
+ */
+function portalUrl(): string | undefined {
+  const raw = process.env.ADMIN_PORTAL_URL || (process.env.NODE_ENV === "development" ? "http://localhost:3100" : "");
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
@@ -58,7 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Navbar />
           <IntroLoader />
           <main id="main">{children}</main>
-          <Footer />
+          <Footer portalUrl={portalUrl()} />
         </LangProvider>
       </body>
     </html>

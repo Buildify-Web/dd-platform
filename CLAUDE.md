@@ -12,8 +12,8 @@ The full solution has 4 deliverables. **This repo (`dd-platform`) contains only 
 | # | Deliverable | In this repo? | Location |
 |---|---|---|---|
 | 1 | Public website (responsive) | ✅ Built | `apps/website` |
-| 2 | Web admin portal | ✅ Planned (next) | `apps/webapp` |
-| — | Backend API (serves website, admin portal **and** the mobile app) | ✅ Planned | `apps/backend` |
+| 2 | Web admin portal | ✅ Built (§9 sign-in, §10 everything else) | `apps/webapp` |
+| — | Backend API (serves website, admin portal **and** the mobile app) | ✅ Portal API built (§9, §10); parent app endpoints pending | `apps/backend` |
 | — | Background jobs (fee reminders, alerts, cleanup) | ✅ Planned | `apps/worker` |
 | 3 | Mobile app (Flutter/Dart, Parent + Teacher roles) | ❌ **Separate repo** | — |
 | 4 | Availo RFID attendance (Buildify hardware) | Integration only | `apps/backend/src/modules/rfid` |
@@ -32,11 +32,13 @@ The backend must still expose every API the **mobile app** needs (parent/teacher
 | Monorepo | pnpm workspaces + Turborepo |
 | Deploy | Docker (one image per app), Caddy for domains + TLS, GitHub Actions CI/CD |
 
-Current versions in use: Node 24, pnpm 12, Next.js 16.4 (uses `proxy.ts`, not `middleware.ts`), React 19.3, Tailwind 4.3, Zod 4, TypeScript 5.9.
+Current versions in use: Node 24, pnpm 12, Next.js 16.4 (uses `proxy.ts`, not `middleware.ts`), React 19.3, Tailwind 4.3, Zod 4, TypeScript 5.9, Express 5, **Prisma 7.10** (pinned: 8.x is still RC), argon2 via `@node-rs/argon2`, pino, Vitest 5, tsup.
+
+**pnpm build scripts:** pnpm 12 refuses dependency install scripts unless listed under `allowBuilds` in `pnpm-workspace.yaml`. Allowed: `@prisma/engines`, `prisma`, `esbuild`. Denied: `@scarf/scarf` (telemetry ping from swagger-ui). Add new entries deliberately.
 
 ## 3. Target project structure
 
-Only `apps/website` and the root workspace files exist so far. Create the rest **as each part is built** — keep to this layout.
+Built so far: `apps/website`, `apps/webapp` (auth screens), `apps/backend` (auth module), `packages/shared`, `packages/db`. Create the rest **as each part is built**, keeping to this layout. The webapp auth routes differ from the early sketch below; the real layout is in §9.
 
 ```
 dd-platform/
@@ -145,16 +147,25 @@ dd-platform/
 └── README.md
 ```
 
-**Move-to-shared TODO:** the website currently keeps `lib/constants.ts` (grades, enquiry interests) and `lib/validation/enquiry.ts` (Zod schema) locally. When `packages/shared` is created, move them there and import from the website, webapp and backend so all three validate identically.
+**Move-to-shared TODO:** `packages/shared` now exists (auth rules live in `@dd/shared/auth`). The website still keeps `lib/constants.ts` (grades, enquiry interests) and `lib/validation/enquiry.ts` (Zod schema) locally. When `packages/shared` is created, move them there and import from the website, webapp and backend so all three validate identically.
 
 ## 4. Commands
 
 ```bash
-pnpm install                 # from repo root
+pnpm install                 # from repo root (also runs `prisma generate`)
 pnpm dev:website             # http://localhost:3000
+pnpm dev:webapp              # http://localhost:3100  (admin & staff portal)
+pnpm dev:backend             # http://localhost:4000  (Swagger UI at /docs)
+pnpm db:up                   # Docker: PostgreSQL on 55432 + Redis on 56379 (docker-compose.dev.yml)
+pnpm db:migrate              # prisma migrate dev (reads DATABASE_URL from apps/backend/.env)
+pnpm db:deploy               # prisma migrate deploy (production)
+pnpm admin:bootstrap         # create / re-invite the main admin (§9)
+pnpm --filter @dd/backend seed:dev  # DEV ONLY sample data + dev-admin / dev-staff logins (§10.9)
 pnpm --filter @dd/website build | lint | typecheck
-pnpm build / lint / typecheck   # all apps via turbo
+pnpm build / lint / typecheck / test   # all packages via turbo
 ```
+
+Local env files (gitignored): `apps/backend/.env`, `apps/webapp/.env.local`, `apps/website/.env.local`. `/.env.example` lists every key.
 
 pnpm is installed via corepack/npm (`npm i -g pnpm` if missing).
 
@@ -336,6 +347,9 @@ Website live and responsive · register → approve → login with role-only acc
   - **Timing:** auto-advance waits `readTime()`, 5–12 s depending on length, and the yellow progress bar matches.
   - **Justdial:** the listing returns 403 to automated fetches, so Justdial reviews need to be pasted in by hand.
   - **Still to confirm:** the **4.9** average rating in `lib/site.ts` (also used on the home page) hasn't been checked against the live Google listing.
+- **"Admin portal" footer link** (`components/Footer.tsx`, bottom row next to the copyright, EN/TA via the `adminPortal` i18n key)
+  - **URL:** the portal is hosted on **its own domain**, so the link is absolute. It comes from the `ADMIN_PORTAL_URL` env var, read **at request time** in `app/layout.tsx` (`portalUrl()`, only http/https accepted) and passed to `Footer` as `portalUrl`. One Docker image works for any domain.
+  - **Fallbacks:** in development it defaults to `http://localhost:3100`; in production an empty/invalid value **hides** the link.
 - **"Built by Buildify" credit** (`components/Footer.tsx`, bottom row, every page)
   - **What it is:** a small `text-xs` muted "Built by" plus the logo at `h-3.5`, at 80% opacity (full on hover), linking to https://www.buildify-web.com/ in a new tab (`noopener noreferrer`).
   - **Logo file:** `public/buildify-logo.png` (350×64), made from the client's white-on-black logo: cropped, with a transparent background and ink `#17260f` artwork so it suits the light footer.
@@ -476,3 +490,301 @@ Website live and responsive · register → approve → login with role-only acc
 - Server Components by default. Add `"use client"` only for interactivity (tabs, carousels, forms, toggles).
 - Keep validation rules and constants in one place (`packages/shared` once created) and reuse them on client and server.
 - Run `lint`, `typecheck` and `build` before handing work over.
+
+## 9. Admin & staff portal: sign-in (built Nov 2026)
+
+The first part of the web portal: everything from "choose your portal" to a signed-in session, built from the 7 approved auth designs. Frontend in `apps/webapp`, backend in `apps/backend/src/modules/auth`, rules in `packages/shared`, tables in `packages/db`.
+
+### 9.1 Deployment shape
+- **Separate domains:** website, portal (webapp) and API are each hosted on their own domain. The website links to the portal through `ADMIN_PORTAL_URL` (§7). Links inside emails use the backend's `PORTAL_URL`.
+- **BFF pattern:** the browser **never calls the API directly**. Forms post to Next.js **server actions** (`app/(auth)/actions.ts`), which call the backend server-to-server (`lib/backend.ts`). So there is no CORS, and the session cookie lives only on the portal's own domain.
+- **Internal key:** every BFF call carries `X-Internal-Key` (webapp `WEBAPP_INTERNAL_API_KEY` must be one of the backend's comma-separated `INTERNAL_API_KEYS`, ≥32 chars). Only with a valid key does the backend trust `X-Client-IP` / `X-Client-User-Agent` (the real browser's IP from Caddy's `X-Forwarded-For`), which drive rate limits and the sign-in log. Without the key those headers are ignored, so nobody can spoof their IP.
+- **Mobile app:** will use the same `/v1/auth` endpoints with `Authorization: Bearer <token>`. A parent/teacher portal value is added when the app's auth is built.
+
+### 9.2 Account model and the main admin
+- **Roles:** `ADMIN`, `STAFF` (parents later). **Statuses:** `PENDING_APPROVAL` → (main admin approves) → `INVITED` (temporary password emailed) → (user activates) → `ACTIVE`; also `REJECTED`, `DISABLED`. Only `ACTIVE` accounts can sign in.
+- **Main admin** (`isMainAdmin`): exactly one owner account, `MAIN_ADMIN_EMAIL` = **meenaannamalai27@gmail.com**. Created only by `pnpm admin:bootstrap` (`src/scripts/bootstrap-main-admin.ts`):
+  - no main admin → creates it as `INVITED` and emails a temporary password + activation link;
+  - exists but not activated → issues a fresh temporary password;
+  - already `ACTIVE` → does nothing (use "Forgot password?").
+  - Without Brevo configured it prints the temporary password in the terminal instead. It refuses to run if a *different* account is already main admin.
+- **Nobody becomes admin by signing up.** Any other admin (or staff) must register and be approved by the main admin. Registration + the approvals screen are the next steps; on approval call `issueTemporaryPassword(user, ctx)` from `modules/auth/service.ts`, which sets `INVITED`, stores an argon2 hash of a new temporary password (valid `TEMP_PASSWORD_DAYS`) and emails it.
+- **Portal per role:** `ADMIN` signs in only at `/login/admin`, `STAFF` only at `/login/staff`. The wrong portal (with the right password) returns `WRONG_PORTAL` with a link to the right one.
+
+### 9.3 Screens (apps/webapp) and routes
+All screens share `components/auth/AuthShell.tsx`. Pages live in `app/(auth)/`.
+
+| Design | Route | Notes |
+|---|---|---|
+| Choose Role | `/` | Admin card → `/login/admin`, Staff card → `/login/staff`, "Activate a new staff account" → `/activate`. "Parent? Get the app" → `PARENT_APP_URL` (falls back to `WEBSITE_URL`). Privacy Policy → `${WEBSITE_URL}/privacy` (**the website has no privacy page yet**). |
+| Admin Login | `/login/admin` | Green shield tile. Secondary: "Sign in as staff instead". |
+| Staff Login | `/login/staff` | Yellow cap tile. Secondary: "First time? Activate your account". |
+| Activate Account (step 1/3) | `/activate` | Username (email) + temporary password → sets the ticket cookie → step 2. "Request new" → `/forgot-password?for=activation`. `?expired=1` shows a "timed out" notice. |
+| Set password for activation (2/3) | `/activate/password` | Needs the ticket cookie, else back to `/activate?expired=1`. Greets by first name. On success → `/activate/done?portal=…` (3/3, "Your account is active"). |
+| Forgot Password (1/3) | `/forgot-password` | `?portal=admin\|staff` sets where "Sign in" goes. `?for=activation` switches the copy to "Request new login details". Sent state: "Check your email" + "Send again" after 60 s. |
+| Set New Password (2/3) | `/reset-password?token=…` | Token checked on the server before the form shows; invalid → "This link has expired". Page sends `Referrer-Policy: no-referrer`. On success → `/reset-password/done?portal=…` (3/3, "Password saved"). |
+| 403 · No permission | `/denied` | "Back to my dashboard" → `/dashboard` (redirects by role). "Switch portal" signs out → `/`. |
+| Session expired | `/session-expired?portal=…` | "Sign in again" → that portal's login. |
+| (temporary) signed-in home | `/admin`, `/staff` | `components/portal/PortalHome.tsx`: name, role chip, sign out. **Replace with the real dashboards.** |
+
+- **Design deviations, on purpose:**
+  - The designs' "Preview error state" link and the "Preview state 403 / Session expired" toggle are designer previews, so they're not rendered. Real error states appear when they happen, and the two access states are separate routes.
+  - Staff login lead reads "Sign in to mark attendance, post class updates and share homework." (the design repeated the admin line about approvals and fees, which staff can't do).
+  - Activate headline is "Welcome to the / Dynamic Donalds team." (the design's stray "-" is dropped).
+  - "ENG" is a static language label for now; the portal is English-only.
+  - Set-password and temporary-password fields have no Show button (as designed); sign-in password has one.
+- **Right panel (`AuthAside`) content** is per screen in `lib/aside-content.tsx`. The activity cards (e.g. "16 registrations waiting for review") are **illustrations, not live data**; nothing about the institute is shown before sign-in. The 403/expired panel reads the idle time from `SESSION_IDLE_MINUTES`.
+
+### 9.4 Design structure and components (`apps/webapp/components/auth`)
+- **Tokens** in `app/globals.css` `@theme`: the website's brand tokens plus portal surfaces: `canvas #e4e6df` (page), `shell #f1f2ed` (rounded frame), `field #e0e3db` (input border), `soft #e8eae4` / `soft-line #dadcd4` (secondary button), `role-admin #f3e9c1`, `role-staff #d1ddc6`, `danger #c2341f`. Font Outfit (`next/font`).
+- **`AuthShell`:** canvas → shell (`rounded-[28px]`, `p-[22px]` at lg) → 2-column grid `minmax(0,1fr) / minmax(0,1.135fr)`, gap 23px (matches the 1372×892 frames). Left column = brand header (logo + "Dynamic Donalds" + per-screen label, top-right prompt + white button), content centred at `max-w-[376px]`, footer (© year, globe "ENG"). **Below `lg` the right panel is hidden.**
+- **`AuthAside`:** white→green vertical gradient, headline (`clamp(1.9rem,2.55vw,2.15rem)`, content width 27rem so lines break like the designs; no `text-balance`), body, then three glass cards pinned to the bottom: two `ActivityCard`s (radio, title, detail, "Syncing…" pulsing yellow dot / "Done" green dot) and a skeleton card. Cards step in from the right (`mr-[17px]`, `mr-[54px]`) as designed.
+- **`TileField`:** the isometric tile grid, pure CSS 3D. A 5×5 grid laid flat with `rotateX(57deg) rotateZ(45deg)` (no perspective, so it looks isometric); each tile has a second layer at `translateZ(-13px)` that shows as thickness. The centre tile is the yellow logo tile, raised and bobbing (`.anim-bob`, along Z), with a yellow glow on the floor. A radial `mask-image` fades the field. Position: `right-[-178px] top-[-84px] size-[600px]`.
+- **`ui.tsx`:** `IconTile` (green / yellow / white, 44px in a 4px `#e5e8e0` ring), `StepBars` (3 bars, `step` filled), `Heading`, `OrDivider`, `primaryButton` / `secondaryButton` classes (46px, `rounded-[10px]`), `ButtonLink`, `ButtonArrow`, `FormAlert` (error shakes once, `role="alert"`; info variant).
+- **`fields.tsx`** (client): `Field`, `PasswordField` (inline "Show"/"Hide" button, `aria-pressed`), `SubmitButton` (spinner + pending label via `useFormStatus`), `PasswordChecklist` (rules from `@dd/shared`: dash = to do, green tick = met, red × = confirm mismatch), `passwordReady()`.
+- **`SetPasswordForm`:** shared by reset and activation; Save stays disabled until the checklist is complete. **Step 3 is its own route** (`PasswordSaved` on `/activate/done` and `/reset-password/done`): a server action that changes cookies makes Next.js re-render the current page, so showing success in place would re-run the page's ticket/token check (now used) and bounce the user. "Sign in to … portal" opens the login page with a "Password saved" notice.
+- **Forms:** server actions via `useActionState`; email is a controlled input so it survives an error (React resets uncontrolled fields after an action); a quick client-side Zod check runs before submit. Inputs are 16px on phones.
+- **Checked** at 1372×892 against every design and at narrow widths (no horizontal scroll). Re-check 360/390/768/1024/1280/1440 when layouts change.
+
+### 9.5 Sessions and route protection
+- **Session = opaque random token** (256-bit). The backend stores only its SHA-256 (`Session.tokenHash`); the webapp keeps it in an **httpOnly, SameSite=Lax** cookie: `__Host-dd_session` in production (HTTPS-only, host-locked), `dd_session` in dev (`lib/cookies.ts`).
+- **Timeouts** (backend env): idle `SESSION_IDLE_MINUTES` (30) and absolute `SESSION_MAX_HOURS` (12). **"Keep me signed in"**: idle 7 days (`SESSION_REMEMBER_IDLE_DAYS`), absolute 30 days, and the cookie persists across browser restarts (otherwise it's a browser-session cookie). `lastSeenAt` is refreshed at most once a minute.
+- **Each check is on the server, every request:**
+  1. `proxy.ts` (optimistic): `/admin*` or `/staff*` without the cookie → `/login/<portal>?next=…`. It also sets the per-request nonce CSP.
+  2. Page guard `requireRole(role, portal, path)` in `lib/session.ts` calls `GET /v1/auth/me` (deduped per request with React `cache`): signed out → login, expired → `/session-expired`, wrong role → `/denied`. **Every new dashboard page must call it.**
+  3. Backend: `authenticate` + `requireRole(...)` middleware (`src/middleware/auth.ts`) on every protected API route. Denials are logged as `ACCESS_DENIED`.
+- `next` after login is only honoured for same-portal paths (`/admin…` for admin).
+- Signing out (`logoutAction`) revokes the session in the DB and deletes the cookie.
+
+### 9.6 Backend auth API (`/v1/auth`, Swagger at `/docs`)
+| Endpoint | Purpose |
+|---|---|
+| `POST /login` `{email,password,portal,rememberMe}` | Returns `{token,user,session}`. |
+| `POST /logout` (Bearer) | Revokes the session; 204 even if already ended. |
+| `GET /me` (Bearer) | User + session; counts as activity. 401 `SESSION_EXPIRED` vs `UNAUTHENTICATED`. |
+| `POST /activation/verify` `{email,temporaryPassword}` | Returns a 15-min single-use `ticket` (`ACTIVATION_TICKET_MINUTES`). |
+| `POST /activation/ticket` `{ticket}` | Is the ticket still valid (step 2 page load)? |
+| `POST /activation/complete` `{ticket,password}` | Sets the password, status → `ACTIVE`, emails a confirmation. |
+| `POST /password/forgot` `{email}` | Always 202 `{sentTo:"l•••@email.com",expiresInMinutes}`. `ACTIVE` → reset link; `INVITED` → fresh temporary password; else nothing. Work runs **after** the response so timing reveals nothing. |
+| `POST /password/reset/verify` `{token}` | Is the reset link valid? |
+| `POST /password/reset` `{token,password}` | Saves, burns the link, **signs out every session**, emails a notice. |
+
+- **Errors** are always `{ error: { code, message, ...details } }`; codes are in `AUTH_ERRORS` (`@dd/shared/auth`), and messages are safe to show.
+- **Code layout:** `src/config/env.ts` (Zod-validated settings; production requires Brevo, internal keys and an https `PORTAL_URL`), `src/lib/*` (crypto, db, errors, logger, rate-limit), `src/middleware/*` (client context, auth/RBAC, validation, errors), `src/modules/auth/*` (routes, schemas, service, sessions, events, limits), `src/services/email/*` (Brevo transport + templates), `src/docs/openapi.ts`.
+
+### 9.7 Security rules implemented
+- **Passwords:** argon2id (19 MiB, t=2). Policy (shared with the UI): ≥8 chars, a letter and a number, ≤128, no leading/trailing spaces. A new password can't equal the temporary one or any of the last `PASSWORD_HISTORY_COUNT` (5) passwords.
+- **Lockout:** `LOGIN_MAX_FAILURES` (5) consecutive wrong passwords lock the account for `LOGIN_LOCK_MINUTES` (15), even for the right password. "n attempts left" shows only when 2 or fewer remain.
+- **No account enumeration:** unknown emails get the **same** responses ("Incorrect email or password", then attempts left, then locked, via an in-memory counter) and the same timing (a dummy argon2 verify). Account-specific messages (not activated, disabled, wrong portal) appear **only after the correct password**. "Forgot password" answers identically for every email.
+- **Rate limits** (in-memory per process, `modules/auth/limits.ts`; move to Redis before running more than one backend instance): login 30/15 min per IP, activation 15/15 min per IP, forgot 5/15 min per IP plus 3/hour per email (extras silently dropped), token checks 30/15 min per IP.
+- **Tokens:** reset links (`RESET_TOKEN_MINUTES`, 30) and activation tickets are random, single-use, stored hashed; issuing a new one voids older ones.
+- **Sign-in log:** `AuthEvent` records every attempt and credential change (type, user, typed email, portal, reason, IP, user agent). It's permanent and never contains passwords or tokens. Application logs (pino) never contain personal data; request logs have path only (no query or body).
+- **Headers:** helmet with `default-src 'none'`, `Cache-Control: no-store`, `X-Request-Id`; body limit 16 KB; strict Zod schemas (unknown keys rejected). The webapp has the same CSP and headers baseline as the website, plus `X-Robots-Tag: noindex` and `robots.txt` disallow-all.
+
+### 9.8 Email (Brevo)
+- `src/services/email/index.ts` posts to Brevo's transactional API (`https://api.brevo.com/v3/smtp/email`) with `BREVO_API_KEY`, sender `MAIL_FROM_EMAIL` / `MAIL_FROM_NAME`, and an optional `MAIL_REPLY_TO`. The sender must be verified in Brevo (Senders, domains & IPs); set up SPF/DKIM for the domain.
+- **Development:** with no key (or `MAIL_LOG_ONLY=true`), emails are **printed to the backend console** instead of sent, so every flow can be tested locally. Production refuses to start without Brevo settings.
+- **Templates** (`templates.ts`, table-based HTML + plain text, brand colours, all values escaped):
+  - `accountInviteEmail`: username, temporary password, expiry, "Activate your account".
+  - `passwordResetEmail`: single-use link, expiry.
+  - `passwordChangedEmail`: sent after activation or reset, "if this wasn't you…".
+
+### 9.9 Database (`packages/db`)
+- Prisma 7 with the `prisma-client` generator → `src/generated/prisma` (gitignored; generated on `pnpm install`), driver adapter `@prisma/adapter-pg`. `createPrismaClient()` in `src/index.ts`. `prisma.config.ts` reads `DATABASE_URL` from `packages/db/.env` or `apps/backend/.env`.
+- **Auth tables** (migration `20261116000000_auth`):
+  - `User`: email unique and lower-case, name ≤100, role, status, `isMainAdmin`, password + temporary-password hashes, failed count, `lockedUntil`, `lastLoginAt`, `approvedBy`.
+  - `Session`
+  - `AuthToken`: purpose `PASSWORD_RESET` | `ACTIVATION`.
+  - `PasswordHistory`
+  - `AuthEvent`
+- **Cleanup for the worker (TODO):** delete expired or used `AuthToken` rows and revoked or expired `Session` rows older than about 30 days. **Never delete `AuthEvent`.**
+- Workspace packages (`@dd/shared`, `@dd/db`) are TypeScript source: the webapp uses `transpilePackages`, and the backend bundles them with tsup (an ESM bundle with a `createRequire` banner for bundled CommonJS such as `pg`).
+
+### 9.10 Tests and local run
+- `pnpm --filter @dd/backend test`:
+  - **unit tests:** policy, argon2, tokens, limiter, enumeration parity, session expiry, validation.
+  - **HTTP tests:** no DB needed.
+  - **DB flow tests** (`tests/auth.flow.test.ts`): invite → activate → login → me → logout, portal rules, lockout parity, forgot → reset (history, single use, sessions revoked), idle expiry, "Request new". They run only with `TEST_DATABASE_URL` set to a throwaway, migrated database, and they wipe its tables.
+- **Dev helper:** `pnpm --filter @dd/backend exec tsx --env-file=.env src/scripts/dev-invite.ts <email> STAFF "<Name>"` creates/re-invites a test account and prints its temporary password (refuses in production). It stands in for approvals until they're built.
+- **Local run:**
+  1. Start PostgreSQL: `pnpm db:up`, or point `DATABASE_URL` in `apps/backend/.env` at the local PostgreSQL 18.
+  2. `pnpm db:migrate`
+  3. `pnpm admin:bootstrap`: copy the temporary password from the terminal.
+  4. `pnpm dev:backend` and `pnpm dev:webapp`.
+  5. Open http://localhost:3100/activate.
+- **Docker:** `docker/webapp.Dockerfile` (port 3100) and `docker/backend.Dockerfile` (port 4000; entrypoint args `migrate` and `bootstrap-admin`). **Neither image has been built yet** (the Docker daemon wasn't running), so build and test both before the first deploy. Caddy must forward `X-Forwarded-For` to the webapp.
+
+### 9.11 Next steps for the portal
+Done since: registration approvals, the admin dashboard and sidebar, and all feature modules (§10). Still open:
+- a privacy policy page on the website;
+- Redis-backed rate limits before scaling out;
+- the token and session cleanup job in the worker.
+
+### 9.12 Status update (Nov 2026): the portal is built
+The admin & staff portal (`apps/webapp`) and its API (`apps/backend`) are built end to end from the approved designs. Sections 10.1–10.10 are the reference for working on it. Read them before changing portal code.
+
+---
+
+## 10. Admin & staff portal: build reference (built Nov 2026)
+
+### 10.1 What is built, and what is not
+- **Built:** every screen in the supplied designs (Mark attendance, Marks entry, New announcement, Notifications inbox, Payments to review, My profile, Question papers, Reports & exports, Review enrolment change, Review registration, RFID, Setting/Audit log, Staff detail & assignment, Staff, Student fee record, Student profile, Students, Website content, Assignments, Attendance, Class updates, Homework & feedback, Marks entry, My students, Question Paper, Staff Dashboard, Class notices). Also built with no design supplied: admin dashboard, courses, competitions, settings, the staff student page.
+- **Real data:** nothing is hard-coded. The dev seed (§10.9) is sample data only. **The real student and staff lists come from the client later**; do not invent real people.
+- **Not built here:** the parent/student mobile API endpoints beyond registration intake and signed file links (parent sign-in is a separate piece, see §10.10); the `apps/worker` process (jobs run in the backend, §10.6); Redis; push (FCM) delivery; Docker images for the new code are untested.
+
+### 10.2 Routes
+Admin (`/admin/*`, guard `requireAdmin` on every page, sidebar from `components/portal/nav.ts`):
+
+| Route | Design / purpose |
+|---|---|
+| `/admin` | Dashboard (today at a glance, needs-attention list, fee collection, recent audit) |
+| `/admin/approvals` | Tabs: student regs, staff regs, enrolment changes, leave (`?tab=`, `?status=pending\|decided`) |
+| `/admin/approvals/registrations/[id]` | Review registration (REG-…), prev/next |
+| `/admin/approvals/enrolment/[id]` | Review enrolment change (ENR-…) |
+| `/admin/leave` | Redirects to `/admin/approvals?tab=leave` |
+| `/admin/students` | Students list (search, grade, course, mode, status, export) |
+| `/admin/students/[id]` | Student profile: Overview (edit), Courses, Fees, Attendance, Homework, Marks |
+| `/admin/staff`, `/admin/staff/[id]` | Staff list; detail with teaching assignment, timetable, reset password, disable |
+| `/admin/courses`, `/admin/competitions` | Course and competition management |
+| `/admin/attendance` | Mark attendance (grade / course / date / session) |
+| `/admin/homework`, `/admin/class-updates`, `/admin/marks`, `/admin/question-papers`, `/admin/assignments` | Teaching screens, admin scope |
+| `/admin/fees`, `/admin/fees/[studentId]` | Monthly fee list; fee record (charges, override, one-time, payments, status, reminders) |
+| `/admin/payments` | Payments to review (verify & mark paid / reject) |
+| `/admin/reports` | Tabs: attendance, homework, pending dues, fee collection (CSV / Excel) |
+| `/admin/announcements`, `/admin/announcements/new` | Announcements list; composer (audiences, filters, schedule, preview) |
+| `/admin/notifications` | Inbox |
+| `/admin/rfid` | RFID overview, live taps, readers, unknown cards, card coverage |
+| `/admin/website` | Website content: gallery (drag order, first 8 on homepage), achievements, testimonials, enquiries (`?tab=`) |
+| `/admin/audit` | Audit log (read-only, filters, CSV) |
+| `/admin/settings` | Institute settings (attendance times, RFID rules, thresholds, payment details, reminders) |
+| `/admin/profile` | My profile: Profile, Security, Notifications (`?tab=`) |
+
+Staff (`/staff/*`, guard `requireStaff`; sidebar from `nav.ts`): `/staff` dashboard, `/staff/students` (+ `[id]` read-only), `/staff/attendance`, `/staff/class-updates`, `/staff/homework`, `/staff/marks`, `/staff/assignments`, `/staff/question-papers`, `/staff/notices` (+ `/new`), `/staff/notifications`, `/staff/profile`. Staff never see admin-only pages; the backend returns 403 and the page redirects to `/denied`.
+
+Other: `/api/files/[id]` (access-checked file stream), `/api/export?src=…` (allow-listed export proxy). Login and activation routes are §9.
+
+### 10.3 Backend API (`/v1`, Swagger at `/docs`)
+All routers check the session and role on the server. Admin-only unless noted. Errors are `{ error: { code, message, fields? } }`.
+
+| Module (`src/modules/…`) | Endpoints |
+|---|---|
+| `meta` | `GET /meta` (courses, competitions, the actor's classes, settings), `GET /meta/counts` (sidebar badges), `GET /meta/search?q=` (⌘K), `GET /meta/class-students` |
+| `dashboard` | `GET /dashboard/admin`, `GET /dashboard/staff` |
+| `approvals` | `GET /approvals?tab&status`, registrations `GET/POST …/:id/approve\|request-info\|reject`, `POST /approvals/registrations` (admin enters one), enrolment `…/enrolment/:id/approve\|reject`, leave `…/leave/:id/approve\|reject`. `POST /v1/public/registrations` (mobile intake, rate limited, no session). `/v1/leave/mine` (staff own leave) |
+| `students` | `GET /students` (+ `/export`), `GET /students/mine` (staff), `GET /students/:id` (+ `/attendance`, `/homework`, `/marks`), `PATCH /students/:id`, `POST/DELETE …/enrolments` |
+| `staff` | `GET /staff` (+ `/export`), `GET /staff/:id`, `POST /staff`, `PATCH /staff/:id`, `PUT …/assignment`, `PUT …/timetable`, `POST …/reset-password`, `POST …/status` |
+| `courses` | `GET/POST /courses`, `PATCH /courses/:id`, `POST …/archive`; `/competitions` same shape, plus `GET …/:id/registrations` |
+| `attendance` | `GET /attendance/sheet`, `PUT /attendance/sheet` (saves changes; corrections audited; parents notified on Absent), `GET /attendance/today` |
+| `homework` | `GET/POST /homework`, `GET/DELETE /homework/:id`, `POST /homework/submissions/:id/review`, `GET /homework/report/summary` (+ `/export`); `/class-updates` `GET/POST/DELETE` |
+| `assignments` | `GET/POST /assignments`, `DELETE /assignments/:id` (link stops working) |
+| `papers` (`/question-papers`) | `GET`, `POST` (upload → awaiting), `POST …/:id/activate`, `…/deactivate`, `DELETE /:id` |
+| `marks` (`/tests`) | `GET /tests`, `POST /tests`, `GET /tests/:id`, `PUT /tests/:id/marks`, `POST /tests/:id/visibility` (admin) |
+| `fees` | `GET /fees` (+ `/export`), `GET /fees/students/:id?month=`, `POST …/payments`, `…/override`, `…/one-time`, `DELETE /fees/charges/:id`, `POST /fees/records/:id/status`, `POST …/students/:id/reminders`; `/payments` `GET`, `GET/:id`, `POST/:id/verify`, `…/reject` (+ `/export`) |
+| `reports` | `GET /reports/attendance`, `/dues`, `/collection` (+ `/export` for each) |
+| `announcements` | `GET /announcements/audiences`, `POST …/preview`, `GET/POST /announcements`, `POST …/:id/send`, `DELETE …/:id`; `/notifications` `GET`, `POST …/:id/read`, `POST …/read-all` |
+| `rfid` | `GET /rfid/overview`, cards `GET/POST /rfid/cards`, `POST …/cards/:id/disable`, `POST /rfid/unknown/dismiss`, `POST /rfid/manual-tap`, devices `GET/POST`, `…/rotate-key`, `…/disable`, `GET /rfid/scans/export`. **Device endpoints** (no session, `X-Device-Key`): `POST /v1/rfid/device/scans` (batched taps), `POST /v1/rfid/device/heartbeat` |
+| `content` | `GET /content/overview`; gallery `GET/POST /content/gallery`, `PATCH/DELETE …/:id`, `POST …/reorder`; achievements, testimonials (CRUD); enquiries `GET`, `POST …/:id/status`. Public: `GET /v1/public/content` (signed image links, cached 5 min). Enquiry intake: `POST /enquiries` or `/v1/enquiries` with `X-Internal-Key` (honeypot `company`) |
+| `files` | `POST /files?purpose=` (raw body, `X-File-Name`), `GET /files/:id` (access-checked), `GET /files/:id/link` (signed, expiring), `GET /v1/public/files/:token` |
+| `system` | `GET /audit` (+ `/export`), `GET/PUT /settings`, `GET/PATCH /profile`, `PUT /profile/preferences`, `POST /profile/password`, `GET /profile/sessions`, `POST /profile/sessions/revoke-others` |
+
+Auth endpoints (`/v1/auth/*`) are in §9.6.
+
+### 10.4 Data model (`packages/db/prisma/schema.prisma`)
+Migrations: `20261116000000_auth` (§9.9), `20261117000000_portal` (all portal tables), `20261117010000_announcement_filters`. Money is whole rupees (`Int`). Calendar days are `@db.Date` read as IST. Readable codes come from `Counter` sequences: `DD-0921` (student), `DD-ST-007` (staff), `REG-0922`, `ENR-0091`.
+
+- **People:** `User` (ADMIN / STAFF, with `designation`, `subject`, `staffCode`, `preferences`), `Student` (code, grade, roll, parent/father/mother, mobile 10 digits, session type, learning mode, ACTIVE/INACTIVE, `feeRemindersEnabled`), `Enrolment` (course link, `endedAt`, `feeOverride`), `Registration`, `EnrolmentChange`, `LeaveRequest`, `TeachingAssignment` (grade + course + subject, timetable `days`/`startTime`/`endTime`/`room`).
+- **Academics:** `Course` (category, grades[], subjects[], monthlyFee, isMandatory), `Competition` / `SubCompetition` / `CompetitionRegistration`, `AttendanceRecord` (unique per student × date × session; source RFID / MANUAL / LEAVE; `late`), `ClassUpdate`, `Homework` / `HomeworkSubmission` (`hiddenAt`), `Assignment` / `AssignmentView`, `QuestionPaper` (AWAITING / ACTIVE / DELETED), `Test` / `Mark` (`resultsVisible`).
+- **Money:** `FeeRecord` (per student per month, unique; `totalDue`, `paid`, `status`, `statusOverride`), `FeeCharge` (COURSE / OVERRIDE / ONE_TIME / COMPETITION), `FeeEvent` (history, kept), `Payment` (PARENT or ADMIN source; PENDING / VERIFIED / REJECTED), `FeeReminder` (one row per 10 / 20 / last reminder, so each is sent once).
+- **Comms:** `Announcement` (kind, audiences[], filters, status DRAFT / SCHEDULED / SENT), `Notification` (USER inbox or PARENT for the app).
+- **RFID:** `RfidDevice` (key stored as SHA-256), `RfidCard` (uid `04:A3:7F:12`, ACTIVE / DISABLED / REPLACED), `RfidScan` (every tap, incl. UNKNOWN / REPEAT / DISABLED_CARD; `resolvedAt`).
+- **Website:** `GalleryItem` (sortOrder; first 8 `onHomepage`), `Achievement`, `Testimonial`, `Enquiry`.
+- **Platform:** `StoredFile` (purpose, sniffed mime, storageKey), `AuditLog` (read-only; area, action, summary, from/to labels, before/after JSON, IP, UA), `Setting` (key/JSON), `Counter`, `JobRun` (job idempotency).
+
+### 10.5 Business rules implemented (scope §5–6 and the designs)
+- **Grades:** Pre-KG, LKG, UKG, Grade 1–12. Course eligibility by category (`gradesAllowedFor`): Phonics Pre-KG–2; tuition / olympiad / spell bee Pre-KG–8; subjects Grade 9–12.
+- **Mandatory course:** Maths & Science is included and cannot be removed for Grades 9–10.
+- **Sessions:** Grade 8 and below = one "Day" entry; Grade 9+ = Morning and Evening.
+- **Learning mode:** One-on-one forces Online (`effectiveSessionType`) and locks the session control.
+- **Inactive** only when the student has no active enrolments (API returns 409 with the field message).
+- **Deregistration window:** days 1–10 of the month only. A request outside the window can be rejected, not approved.
+- **Fees:** an active student gets a record per month (`ensureMonth`). Status = PAID / PARTIAL / UNPAID from paid vs total, unless a manual status is set. One-time charges and overrides recalculate the record. Verified payments only count.
+- **Reminders:** 10th (all with a balance), 20th and last day (if still unpaid), at 10:00 IST. Exempt students are skipped. Each reminder shows the correct balance.
+- **Attendance:** RFID tap → Present (Late after the session cut-off). Repeats within the dedupe window are ignored. Approved leave pre-fills Leave. Changing a saved mark is a correction, written to the audit log. Parents are notified on Absent.
+- **Teacher scope:** a teacher sees only students in the grade × course of their assignments (`services/scope.ts`); admin sees all. Staff can post notices only to their own classes.
+- **Homework:** given to a class; parents notified; feedback notifies the parent; completed homework is hidden after 1 month (daily job).
+- **Assignments:** Grades 9–12 only. Deleting one kills its link (`/api/files/:id` re-checks the owner).
+- **Question papers:** hidden until admin activates; admin is alerted on each upload; deleted papers' links return 404.
+- **Marks:** visible to parents only after admin publishes; corrections keep old and new values in the audit log; max = the test's `maxMarks`.
+- **Announcements:** no filter = all active parents. Filters (course, session type, learning mode) narrow them. Scheduled sends run from the job loop, claimed once.
+- **Registrations:** approval creates the student (Active, enrolments, monthly fee record) or the staff account (INVITED, temporary password emailed). Duplicate check by name + mobile.
+- **Uploads:** the real type is read from the file's first bytes (not the client's type). Size limits per purpose (photo 2 MB, attachments 5 MB, documents 10 MB).
+- **Audit:** every admin action, fee change, marks update and attendance correction writes an `AuditLog` row with the actor's IP and browser.
+
+### 10.6 Background jobs (`src/jobs/index.ts`)
+Run inside the backend every minute (`JOBS_ENABLED`, default on). Each daily job runs once per day through a `JobRun` key, so restarts and several instances never double-send. Jobs: scheduled announcements, fee reminders (10th / 20th / last day, 10:00), absentee alert after each session, attendance-not-marked reminder at the deadline (teacher and admin), homework "not completed" report (20:00), daily cleanup (hide old completed homework, expired tokens and sessions), RFID reader offline alert. Move to `apps/worker` with Redis when scaling out.
+
+### 10.7 Architecture patterns (follow these for any new portal feature)
+- **BFF:** pages are server components. They call the backend with `api(path, portal)` (`lib/api.ts`), which redirects on session or role errors. Mutations are server actions in `lib/actions.ts` (`call(method, path, body)`), which call `refresh()` on success. The browser never calls the API directly.
+- **Guards:** every page starts with `requireAdmin(path)` or `requireStaff(path)` (`lib/portal.ts`). The layouts (`app/(portal)/admin|staff/layout.tsx`) add the shell. The backend is still the real boundary: `adminOnly` / `portalUser` middleware on every router, plus `assertClassAccess` / `assertStudentAccess` in services.
+- **Validation:** Zod schemas, `.strict()` on every body, one shared source for rules in `packages/shared` (`domain.ts`: names, mobile, grades, labels, formatINR, IST helpers). The UI imports the same functions, so both sides agree.
+- **Lists:** URL-driven filters and pages (`?q=&grade=&page=`), using `FilterSelect` / `SearchBox` / `ParamSegmented` / `Pager`. Server components fetch. Client islands only for interaction.
+- **Writes:** `useAction()` runs an action with a pending state, a toast, and inline field errors (`onError → fields`). Session expiry routes to "Session expired".
+- **Audit and notify:** `audit(req, { area, action, summary, fromLabel, toLabel, before, after })` and `notifyParents / notifyUsers / notifyAdmins` from `services/`. Both swallow their own errors so a failed notification never undoes an action.
+- **Exports:** `sendTable()` writes CSV (BOM, formula-safe) or XLSX (`lib/xlsx.ts`, dependency-free). The `/api/export` proxy allows only listed export paths.
+- **Files:** `saveUpload` (magic-byte check, size cap, random storage key), `/api/files/:id` streams with `nosniff` and a sandboxed CSP.
+
+### 10.8 Components and design system
+Tokens are in `app/globals.css` `@theme`: the website's brand colours, plus `canvas` (page), `shell`, `frame` (card surround), `field` (input border), `soft` (pill/secondary bg), `line` / `line-2`, `ok-tint` (green chip), `sun-tint` (yellow chip), `sun-soft` (notice), `danger-tint` / `danger-ink`, `info-tint` / `info-ink`, `cream`, `absent`. Font: Outfit.
+
+**Visual rules (match the designs):**
+- Cards: white, `rounded-[18px]`, `border-line`, `p-4 sm:p-5`. Headings in `text-[15.5px] font-normal`.
+- Primary button: dark ink pill (`btn.dark`), secondary: white outline pill (`btn.white`), `btn.sun` for the one highlighted action on dark panels, `btn.danger` for reject.
+- Highlight colour: sun yellow for counts, "attention", and the selected state in decision panels. Brand green = good / paid / present.
+- Stat tiles (`StatCard`): white by default; `tone="green" | "sun" | "ink"` for the highlighted one. Icon tile via `iconClass`.
+- Pills (`Pill tone=`): green, sun, red, blue, grey, ink, sage, cream.
+- Dark decision panels (`bg-ink`) hold the primary actions beside a review (registration, enrolment, payments).
+
+**Shared components:**
+- `components/ui/kit.tsx` (server-safe): `cx`, `btn.*`, `PageHeader`, `Card`, `StatCard` / `StatGrid`, `Pill`, `Badge`, `Avatar`, `Person`, `Table` / `th` / `td`, `Empty`, `Notice`, `LinkTabs`, `PillTabs`, `Pager`, `Bar`, `inputBase` / `inputCls` / `textareaCls`, `labelCls`.
+- `components/ui/client.tsx`: `ToastProvider`, `useAction`, `ActionButton` (with optional confirm dialog), `Dialog`, `useParamSetter`, `FilterSelect`, `SelectBox`, `SearchBox`, `Segmented`, `ParamSegmented`, `Toggle`, `Chip`, `Field`, `CopyButton`.
+- `components/ui/DateFilter.tsx`, `components/ui/MonthFilter.tsx` (URL-bound date / month inputs), `components/ui/shared-state.ts`.
+- `components/portal/`: `Shell.tsx` (header + sidebar frame), `ShellClient.tsx` (sidebar groups, user card, mobile drawer, ⌘K palette), `nav.ts` (menu structure), `icons.tsx` (line icons, 24px / 1.7 stroke), `ProfileView.tsx` + `ProfileForms.tsx`.
+- `components/teaching/`: `AttendanceSheet` (admin and staff variants), `ClassPicker` / `ClassTabs`, `MarksView` / `MarksClient`, `PapersView` / `PapersClient`, `AssignmentsView` / `AssignmentsClient`, `HomeworkView` / `HomeworkClient`, `ClassUpdatesView` / `ClassUpdatesClient`, `UploadField` (drag-drop, uploads on pick), `MyStudents`.
+- `components/comms/`: `Composer` (audiences, template chips, filters, schedule, phone preview), `AnnouncementList`, `Inbox` / `InboxClient`.
+- `components/content/`: `WebsiteView`, `WebsiteClient` (gallery drag-reorder, dialogs for achievements and testimonials, enquiry status).
+- `lib/format.ts` (`gradeRange`), `lib/date-utils.ts` (client-safe YYYY-MM-DD maths), `lib/portal.ts` (`getMeta`, `classOptions`, `pickFromParams`).
+
+**Gotchas already hit (don't repeat them):**
+- **Tailwind class conflicts:** `btn.*` already has `inline-flex`. Adding `hidden` or `sm:hidden` next to it does not hide the element. Wrap it in a `<span className="hidden sm:block">` instead.
+- **`btn.*` vs overrides:** a utility passed into `className` overrides the button's own colour and size only when it sits later in the CSS. Prefer a new `btn` variant over overriding. `inputCls` is full-width and fixed-height. Use `inputBase` with your own size.
+- **ESLint `react-hooks`:** do not call `setState` synchronously in an effect, and do not call impure functions (`new Date()`) during render. Derive values during render (`shown = q ? results : []`) and set state only in async callbacks. Use `istDate()` from `@dd/shared/domain` for "today".
+- **`noUncheckedIndexedAccess`:** `row.field` from `Record<string, …>` is `T | undefined`. Include `undefined` in cell types.
+- **Next 16 proxies:** `searchParams` and `params` are Promises (`await`). Server actions have a 11 MB body limit (`next.config.ts`).
+- **Dates:** the backend stores `@db.Date` at 00:00 UTC. Always convert with `dbDate()` / `ymd()` (`lib/dates.ts`). Never `new Date("YYYY-MM-DD")` in local time. "Today" is IST (`todayIst()`).
+- **Route order:** `/v1/rfid/device` must mount before `/v1/rfid` (admin-only). `/students/mine` must mount before `/students/:id`.
+- **Dev stale state:** a dev-server HMR error can show a "1 Issue" overlay or hydration warnings after big edits. Restart `pnpm dev` in `apps/webapp` and re-check. It isn't a code bug if a fresh server renders clean.
+
+**Responsive:** widths 360 / 390 / 768 / 1024 / 1280 / 1440. The shell collapses the sidebar into a drawer below `lg`. Tables scroll inside their card (`overflow-x-auto`), so the page never scrolls sideways. Checked at 1372 (desktop) and 390 (phone) for the main screens. The other widths are still to be checked.
+
+### 10.9 Running locally and sample data
+1. `pnpm db:up` → `pnpm db:deploy` (applies all migrations).
+2. `pnpm --filter @dd/backend seed:dev`: development-only sample data (refuses in production). Creates **dev-admin@example.test / DevPass123** (ADMIN) and **dev-staff@example.test / DevPass123** (Lakshmi Narayanan, teacher), plus about 20 sample students, courses, a week of attendance, RFID taps, fees, homework, marks, announcements, notifications and audit rows. Run it once; it skips if `Counter 'dev-seed'` exists.
+3. `pnpm dev:backend` (port 4000) and `pnpm dev:webapp` (port 3100). Sign in at `http://localhost:3100/login/admin` or `/login/staff`.
+4. RFID test: `POST http://localhost:4000/v1/rfid/device/scans` with header `X-Device-Key: dev-gate-1-key-0123456789` and body `{"scans":[{"cardUid":"04a37f99"}]}`.
+5. Email in dev prints to the backend console (§9.8).
+
+Verified in this build: all admin and staff routes return 200 with no error boundary; typecheck clean (backend, webapp, shared, db); webapp ESLint clean; backend tests 16 pass (the 6 DB-flow tests need `TEST_DATABASE_URL`); API flows exercised with curl: approvals, payments, attendance corrections, marks correction, announcements, paper upload → activate → delete (link returns 404), RFID tap and assignment, enquiry intake, XLSX export.
+
+**Not yet verified:** full browser click-through of every form (only the screens above were screenshotted at 1372 and 390); the admin and staff notification inbox visuals; 360 / 768 / 1024 / 1280 / 1440 widths; Docker images for the new code.
+
+### 10.10 Open items (client input or later work)
+- **Real students and staff:** the client sends the lists later. Do not seed real people.
+- **Grade 8 attendance:** the scope doesn't say whether it's one entry per day or two sessions. The code treats Grade 8 as one "Day" session. Confirm with the client.
+- **Parent sign-in and app API:** the mobile app needs parent auth (the `PARENT` portal in `SessionPortal` is not yet added). Registration intake, signed file links and the public content feed exist; enrolment-change intake exists as `createEnrolmentChange()` in `approvals/routes.ts` but has no parent-facing route yet.
+- **RFID hardware:** the Availo model, firmware and protocol must be verified before the device integration is final (scope §6.4). The `/v1/rfid/device/*` contract is a placeholder until then.
+- **Worker and Redis:** jobs run in the backend process. Move them to `apps/worker` (with Redis locks) before running more than one instance. Rate limits are in memory (§9.7).
+- **File storage:** uploads go to local disk (`UPLOAD_DIR`). Mount a volume in Docker, or move to object storage (then update `services/files.ts`).
+- **Push and email:** in-app notifications exist. FCM push and Brevo emails for every event are partly wired (registration, reminders, reset/activation); the remaining templates should follow the `noticeEmail` helper.
+- **Tamil:** the UI toggle and cached auto-translation of user content (scope §6.3) are not built.
+- **Designs with no source:** admin dashboard, courses, competitions, settings, and the staff student page were built from the house style, not from designs. Show them to the client for sign-off.
+- **Security:** keep `FILE_URL_SECRET` (≥32 chars) and `INTERNAL_API_KEYS` set in production; the backend refuses to start without them.

@@ -4,9 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { site } from "@/lib/site";
 import { useLang } from "@/lib/i18n";
-import { Mail, MapPin, Phone } from "./icons";
+import { ArrowUpRight, Mail, MapPin, Phone } from "./icons";
 
-export function Footer() {
+/**
+ * `portalUrl` is the admin & staff portal (apps/webapp), which is hosted on its own domain.
+ * It comes from the ADMIN_PORTAL_URL env var, read on the server in the root layout, so the
+ * same build works for any domain. The link is hidden when it isn't configured.
+ */
+export function Footer({ portalUrl }: { portalUrl?: string }) {
   const { t } = useLang();
   const explore = [
     { href: "/about", label: t("about") },
@@ -75,8 +80,20 @@ export function Footer() {
         </div>
 
         <div className="mx-6 mt-12 flex flex-col gap-2 border-t border-line py-6 text-sm text-ink-soft sm:flex-row sm:items-center sm:justify-between md:mx-10 lg:mx-14">
-          <p>
-            © {new Date().getFullYear()} {site.name}
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>
+              © {new Date().getFullYear()} {site.name}
+            </span>
+            {portalUrl && (
+              <a
+                href={portalUrl}
+                rel="noopener noreferrer"
+                className="-my-2 inline-flex items-center gap-1 py-2 text-ink-soft underline-offset-4 transition-colors hover:text-brand hover:underline"
+              >
+                {t("adminPortal")}
+                <ArrowUpRight className="size-3.5" />
+              </a>
+            )}
           </p>
           <p>{t("appNote")}</p>
           <a

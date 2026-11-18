@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "envMode": "loose",
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -8,6 +9,7 @@
     "dev": { "cache": false, "persistent": true },
     "start": { "cache": false, "persistent": true },
     "lint": {},
-    "typecheck": {}
+    "typecheck": {},
+    "test": { "cache": false }
   }
 }
